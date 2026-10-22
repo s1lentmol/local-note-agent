@@ -10,6 +10,7 @@ from starlette.exceptions import HTTPException
 
 from app.api.notes import router as notes_router
 from app.db import Base, create_sqlite_engine
+from app.schemas import HealthResponse
 
 
 def create_app(database_path: Path | None = None) -> FastAPI:
@@ -29,7 +30,23 @@ def create_app(database_path: Path | None = None) -> FastAPI:
         finally:
             engine.dispose()
 
-    app = FastAPI(title="Local Note Agent", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Local Note Agent",
+        version="0.1.0",
+        description=(
+            "API текстовых заметок с локальным хранением в SQLite. "
+            "Поддерживает создание, просмотр, редактирование и удаление заметок. "
+            "Исходный текст сохраняется отдельно от редактируемого.\n\n"
+            "Для изменения передайте `expected_version` из поля `content_version`. "
+            "При конфликте версий сервер вернёт `409`. "
+            "Импорт файлов, ссылок и обработка ИИ пока не подключены."
+        ),
+        openapi_tags=[
+            {"name": "notes", "description": "Создание и управление текстовыми заметками."},
+            {"name": "health", "description": "Проверка доступности API."},
+        ],
+        lifespan=lifespan,
+    )
     app.include_router(notes_router)
 
     @app.exception_handler(HTTPException)
@@ -47,7 +64,11 @@ def create_app(database_path: Path | None = None) -> FastAPI:
             "fields": [list(error["loc"]) for error in exc.errors()],
         }}, status_code=422)
 
-    @app.get("/api/v1/health", tags=["health"])
+    @app.get(
+        "/api/v1/health", tags=["health"], response_model=HealthResponse,
+        summary="Проверить доступность API",
+        description="Возвращает ok, если API отвечает. Не проверяет внешние сервисы.",
+    )
     def health():
         return {"status": "ok"}
 

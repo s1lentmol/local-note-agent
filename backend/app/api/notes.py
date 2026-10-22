@@ -7,9 +7,12 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, lazyload, load_only
 
 from app.models import Note, Source, utc_now
-from app.schemas import NoteCreate, NoteDetail, NoteList, NoteSummary, NoteUpdate
+from app.schemas import ErrorResponse, NoteCreate, NoteDetail, NoteList, NoteSummary, NoteUpdate
 
-router = APIRouter(prefix="/api/v1/notes", tags=["notes"])
+router = APIRouter(prefix="/api/v1/notes", tags=["notes"], responses={
+    422: {"model": ErrorResponse, "description": "Некорректные поля запроса или параметры."},
+})
+NOT_FOUND = {404: {"model": ErrorResponse, "description": "Заметка не найдена."}}
 
 
 def get_session(request: Request) -> Iterator[Session]:
@@ -34,7 +37,12 @@ def version_conflict() -> HTTPException:
     })
 
 
-@router.post("", response_model=NoteDetail, status_code=201)
+@router.post(
+    "", response_model=NoteDetail, status_code=201,
+    summary="Создать текстовую заметку",
+    description="Сохраняет исходный текст и его редактируемую копию. Начальная версия — 1.",
+    response_description="Созданная заметка.",
+)
 def create_note(payload: NoteCreate, session: Database):
     note = Note(
         title=payload.title,
@@ -47,11 +55,15 @@ def create_note(payload: NoteCreate, session: Database):
     return NoteDetail.model_validate(note)
 
 
-@router.get("", response_model=NoteList)
+@router.get(
+    "", response_model=NoteList, summary="Получить список заметок",
+    description="Возвращает заметки от новых к старым, без полных текстов и источников.",
+    response_description="Страница заметок и их общее количество.",
+)
 def list_notes(
     session: Database,
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100, description="Размер страницы, от 1 до 100.")] = 20,
+    offset: Annotated[int, Query(ge=0, description="Количество заметок, которые нужно пропустить.")] = 0,
 ):
     notes = session.scalars(
         select(Note)
@@ -72,12 +84,24 @@ def list_notes(
     )
 
 
-@router.get("/{note_id}", response_model=NoteDetail)
+@router.get(
+    "/{note_id}", response_model=NoteDetail, summary="Получить заметку",
+    description="Возвращает текущий текст, оригинал и версию заметки по её UUID.",
+    responses=NOT_FOUND,
+)
 def read_note(note_id: UUID, session: Database):
     return NoteDetail.model_validate(get_note(session, note_id))
 
 
-@router.patch("/{note_id}", response_model=NoteDetail)
+@router.patch(
+    "/{note_id}", response_model=NoteDetail, summary="Изменить заметку",
+    description=(
+        "Передайте expected_version и хотя бы одно поле: title или extracted_text. "
+        "Пустые значения и null не допускаются. Исходный текст сохраняется. "
+        "При изменении содержимого версия увеличивается; при одинаковых значениях остаётся прежней."
+    ),
+    responses={**NOT_FOUND, 409: {"model": ErrorResponse, "description": "Версия заметки уже изменилась."}},
+)
 def edit_note(note_id: UUID, payload: NoteUpdate, session: Database):
     note = get_note(session, note_id)
     if note.content_version != payload.expected_version:
@@ -103,7 +127,12 @@ def edit_note(note_id: UUID, payload: NoteUpdate, session: Database):
     return NoteDetail.model_validate(note)
 
 
-@router.delete("/{note_id}", status_code=204)
+@router.delete(
+    "/{note_id}", status_code=204, summary="Удалить заметку",
+    description="Удаляет заметку и её исходный текст из базы. Восстановление не предусмотрено.",
+    response_description="Заметка удалена. Тело ответа отсутствует.",
+    responses=NOT_FOUND,
+)
 def delete_note(note_id: UUID, session: Database):
     session.delete(get_note(session, note_id))
     session.commit()
