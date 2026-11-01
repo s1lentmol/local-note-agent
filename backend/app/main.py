@@ -88,7 +88,7 @@ def create_app(database_path: Path | None = None, settings: Settings | None = No
             "**Редактирование:** передайте expected_version из content_version. Конфликт — 409. "
             "Оригинал сохраняется, устаревшие результаты ИИ отбрасываются. Удаление скрывает заметку сразу, "
             "файлы и индекс очищает worker. Все даты — UTC.\n\n"
-            "**Запуск из корня репозитория:** `python3 -m venv .venv`, "
+            "**Запуск из корня репозитория (Linux/macOS):** `python3 -m venv .venv`, "
             '` .venv/bin/python -m pip install -e "./backend[dev]"`. '
             "В двух терминалах: `.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1` "
             "и `.venv/bin/python -m app.worker`. Данные: backend/data; переопределение — NOTE_AGENT_DATA_DIR. "

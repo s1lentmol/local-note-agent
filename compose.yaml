@@ -1,0 +1,57 @@
+x-backend: &backend
+  image: local-note-agent-backend:dev
+  pull_policy: never
+  init: true
+  environment: &environment
+    NOTE_AGENT_DATA_DIR: /data
+    NOTE_AGENT_WHISPER_MODEL: ${NOTE_AGENT_WHISPER_MODEL:-base}
+    NOTE_AGENT_OCR_LANGUAGE: ${NOTE_AGENT_OCR_LANGUAGE:-rus+eng}
+    NOTE_AGENT_CORS_ORIGINS: ${NOTE_AGENT_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+    NOTE_AGENT_KNOWLEDGE_ADAPTER: ${NOTE_AGENT_KNOWLEDGE_ADAPTER:-}
+    NOTE_AGENT_IMAGE_MAX_BYTES: ${NOTE_AGENT_IMAGE_MAX_BYTES:-10485760}
+    NOTE_AGENT_AUDIO_MAX_BYTES: ${NOTE_AGENT_AUDIO_MAX_BYTES:-52428800}
+    NOTE_AGENT_AUDIO_MAX_SECONDS: ${NOTE_AGENT_AUDIO_MAX_SECONDS:-600}
+    NOTE_AGENT_IMAGE_MAX_PIXELS: ${NOTE_AGENT_IMAGE_MAX_PIXELS:-25000000}
+    NOTE_AGENT_TEXT_MAX_CHARS: ${NOTE_AGENT_TEXT_MAX_CHARS:-100000}
+    NOTE_AGENT_HTML_MAX_BYTES: ${NOTE_AGENT_HTML_MAX_BYTES:-5242880}
+    NOTE_AGENT_WEB_TIMEOUT_SECONDS: ${NOTE_AGENT_WEB_TIMEOUT_SECONDS:-20}
+    NOTE_AGENT_JOB_TIMEOUT_SECONDS: ${NOTE_AGENT_JOB_TIMEOUT_SECONDS:-900}
+  volumes:
+    - note-data:/data
+
+services:
+  api:
+    <<: *backend
+    build: ./backend
+    ports:
+      - "127.0.0.1:${NOTE_AGENT_PORT:-8000}:8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  prepare-models:
+    <<: *backend
+    command: ["python", "-m", "app.prepare_models"]
+    restart: "no"
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "app.worker"]
+    depends_on:
+      prepare-models:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    stop_grace_period: 15s
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.worker", "--check"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  note-data:
