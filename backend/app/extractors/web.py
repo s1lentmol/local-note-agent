@@ -2,6 +2,7 @@ import ipaddress
 import socket
 from urllib.parse import urljoin, urlsplit
 
+import certifi
 import trafilatura
 import urllib3
 from pydantic import AnyHttpUrl, TypeAdapter, ValidationError
@@ -59,6 +60,7 @@ def download_html(url: str, settings) -> tuple[bytes, str]:
                 server_hostname=parts.hostname,
                 assert_hostname=parts.hostname,
                 cert_reqs="CERT_REQUIRED",
+                ca_certs=certifi.where(),
                 **options,
             )
         else:

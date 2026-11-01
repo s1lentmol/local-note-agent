@@ -5,7 +5,7 @@ import signal
 import subprocess
 import sys
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC
 
 from sqlalchemy import select, text
@@ -140,7 +140,8 @@ class Worker:
             while process.poll() is None:
                 self.heartbeat()
                 if self.stopping or time.monotonic() - started > self.settings.job_timeout_seconds:
-                    os.killpg(process.pid, signal.SIGKILL)
+                    with suppress(ProcessLookupError):
+                        os.killpg(process.pid, signal.SIGKILL)
                     process.wait()
                     code = "worker_stopped" if self.stopping else "processing_timeout"
                     finish_error(
@@ -164,7 +165,8 @@ class Worker:
                 )
         finally:
             if process.poll() is None:
-                os.killpg(process.pid, signal.SIGKILL)
+                with suppress(ProcessLookupError):
+                    os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
 
     def close(self):
@@ -201,10 +203,14 @@ def main():
     logging.basicConfig(level=logging.INFO)
     if len(sys.argv) == 3 and sys.argv[1] == "--job":
         settings = Settings.model_validate_json(os.environ["NOTE_AGENT_SETTINGS_JSON"])
+        # An OS alarm also bounds the task if the supervising worker is killed.
+        signal.signal(signal.SIGALRM, signal.SIG_DFL)
+        signal.alarm(settings.job_timeout_seconds + 5)
         engine = create_sqlite_engine(settings.database_path)
         try:
             process_job(sessionmaker(engine), settings, sys.argv[2])
         finally:
+            signal.alarm(0)
             engine.dispose()
     elif "--check" in sys.argv:
         settings = Settings.from_env()

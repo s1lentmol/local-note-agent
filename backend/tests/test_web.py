@@ -79,6 +79,7 @@ def test_validated_ip_is_used_with_original_tls_name(monkeypatch):
     assert connections[0][0] == "93.184.216.34"
     assert connections[0][2]["server_hostname"] == "example.com"
     assert connections[0][2]["assert_hostname"] == "example.com"
+    assert connections[0][2]["ca_certs"]
     assert pool.options["headers"]["Host"] == "example.com"
     assert pool.options["redirect"] is False
     assert pool.options["retries"] is False

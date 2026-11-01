@@ -382,3 +382,31 @@ def test_openapi_documents_all_routes_and_real_error_shape(system):
                 ].endswith("/ErrorResponse")
     assert "202" in spec["paths"]["/api/v1/notes"]["post"]["responses"]
     assert "content" not in spec["paths"]["/api/v1/notes/{note_id}"]["delete"]["responses"]["204"]
+
+
+def test_wrong_adapter_result_is_rejected(system):
+    client, worker = system
+    worker.settings.knowledge_adapter = "test:factory"
+    client.app.state.settings.knowledge_adapter = "test:factory"
+    note = text_note(client)
+
+    class WrongAdapter(Adapter):
+        def upsert_note(self, document):
+            result = super().upsert_note(document)
+            return result.model_copy(update={"content_version": 999})
+
+    worker.run_once(WrongAdapter())
+    result = read(client, note)
+    assert result["summary"] is None
+    assert result["enrichment_error"]["code"] == "invalid_enrichment_result"
+    assert result["ingestion_status"] == "ready"
+
+
+def test_configured_text_limit(system):
+    client, worker = system
+    client.app.state.settings.text_max_chars = 5
+    response = client.post(
+        "/api/v1/notes", json={"source_type": "text", "title": "x", "text": "123456"}
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "text_too_large"
