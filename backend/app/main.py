@@ -9,7 +9,8 @@ from sqlalchemy.orm import sessionmaker
 from starlette.exceptions import HTTPException
 
 from app.api.notes import router as notes_router
-from app.db import Base, create_sqlite_engine
+from app.db import create_sqlite_engine
+from app.migrate import migrate
 from app.schemas import HealthResponse
 
 
@@ -24,7 +25,7 @@ def create_app(database_path: Path | None = None) -> FastAPI:
     async def lifespan(app: FastAPI):
         engine = create_sqlite_engine(database_path)
         try:
-            Base.metadata.create_all(engine)
+            migrate(engine)
             app.state.session_factory = sessionmaker(engine)
             yield
         finally:
