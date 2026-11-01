@@ -38,9 +38,14 @@ def test_note_lifecycle_preserves_original(client):
     assert note["created_at"].endswith("Z")
     assert client.get(path).json() == note
 
-    edited = client.patch(path, json={
-        "expected_version": 1, "title": "Исправлено", "extracted_text": "Новый текст",
-    })
+    edited = client.patch(
+        path,
+        json={
+            "expected_version": 1,
+            "title": "Исправлено",
+            "extracted_text": "Новый текст",
+        },
+    )
     assert edited.status_code == 200
     updated = edited.json()
     assert updated["title"] == "Исправлено"
@@ -55,6 +60,13 @@ def test_note_lifecycle_preserves_original(client):
     assert deleted.content == b""
     assert client.get(path).status_code == 404
     assert client.get("/api/v1/notes").json()["total"] == 0
+    from app.worker import Worker
+
+    worker = Worker(client.app.state.settings)
+    try:
+        assert worker.run_once()
+    finally:
+        worker.close()
     with client.app.state.session_factory() as session:
         assert session.scalar(select(func.count()).select_from(Source)) == 0
 
@@ -100,33 +112,57 @@ def test_concurrent_updates_do_not_overwrite_each_other(client):
 
 def test_unchanged_update_keeps_version(client):
     note = create_note(client)
-    response = client.patch(f"/api/v1/notes/{note['id']}", json={
-        "expected_version": 1, "title": note["title"],
-    })
+    response = client.patch(
+        f"/api/v1/notes/{note['id']}",
+        json={
+            "expected_version": 1,
+            "title": note["title"],
+        },
+    )
     assert response.status_code == 200
     assert response.json() == note
 
 
-@pytest.mark.parametrize("changes", [
-    {"title": " "}, {"text": "\n\t"}, {"text": ""}, {"title": None},
-    {"text": None}, {"title": "a" * 201}, {"text": "a" * 100_001},
-    {"source_type": "url"}, {"unexpected": True},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"title": " "},
+        {"text": "\n\t"},
+        {"text": ""},
+        {"title": None},
+        {"text": None},
+        {"title": "a" * 201},
+        {"text": "a" * 100_001},
+        {"source_type": "url"},
+        {"unexpected": True},
+    ],
+)
 def test_invalid_creation(client, changes):
-    response = client.post("/api/v1/notes", json={
-        "source_type": "text", "title": "Заметка", "text": "Текст",
-    } | changes)
+    response = client.post(
+        "/api/v1/notes",
+        json={
+            "source_type": "text",
+            "title": "Заметка",
+            "text": "Текст",
+        }
+        | changes,
+    )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "validation_error"
     assert client.get("/api/v1/notes").json()["total"] == 0
 
 
-@pytest.mark.parametrize("payload", [
-    {"expected_version": 1}, {"expected_version": 1, "title": None},
-    {"expected_version": 1, "extracted_text": " "},
-    {"expected_version": 0, "title": "Новое"}, {"title": "Новое"},
-    {"expected_version": 1, "source": {"original_text": "Подмена"}},
-])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"expected_version": 1},
+        {"expected_version": 1, "title": None},
+        {"expected_version": 1, "extracted_text": " "},
+        {"expected_version": 0, "title": "Новое"},
+        {"title": "Новое"},
+        {"expected_version": 1, "source": {"original_text": "Подмена"}},
+    ],
+)
 def test_invalid_update(client, payload):
     note = create_note(client)
     path = f"/api/v1/notes/{note['id']}"
@@ -143,7 +179,8 @@ def test_invalid_pagination(client, query):
 def test_missing_and_invalid_ids(client):
     path = f"/api/v1/notes/{uuid4()}"
     for response in (
-        client.get(path), client.delete(path),
+        client.get(path),
+        client.delete(path),
         client.patch(path, json={"expected_version": 1, "title": "Новое"}),
     ):
         assert response.status_code == 404
