@@ -1,0 +1,65 @@
+{
+  "phase": "generation",
+  "utc": "2026-11-13T18:55:53.388747+00:00",
+  "runs": [
+    {
+      "name": "russian",
+      "seconds": 3.8276655829977244,
+      "result": {
+        "content": "Резервные копии заметок нужны для защиты данных от потери в случае сбоя устройства или утраты информации. Они позволяют быстро восстановить важную информацию и избежать потери трудов и времени.",
+        "tool_calls": [],
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "name": "native_tools",
+      "result": {
+        "content": "",
+        "tool_calls": [
+          {
+            "id": "call_ln7uqj0v",
+            "name": "search_notes",
+            "arguments": {
+              "query": "встреча по проекту Орбита"
+            }
+          }
+        ],
+        "finish_reason": "tool_calls"
+      }
+    },
+    {
+      "name": "tool_result",
+      "seconds": 1.0383243749965914,
+      "result": {
+        "content": "Встреча по проекту Орбита состоится 15 мая в 10:00. Нужно подготовить макет.",
+        "tool_calls": [],
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "name": "json_mode",
+      "seconds": 1.4644327909918502,
+      "result": {
+        "summary": "Встреча по учебному проекту назначена на 15 мая, требуется подготовить макет.",
+        "tags": [
+          "учебный проект",
+          "встреча",
+          "макет",
+          "дата"
+        ]
+      }
+    }
+  ],
+  "profile": {
+    "base_url": "http://127.0.0.1:11437/v1",
+    "timeout": 180.0,
+    "model": "qwen3:8b",
+    "max_tokens": 512,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "reasoning_effort": "none"
+    }
+  },
+  "status": "pass"
+}

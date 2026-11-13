@@ -1,0 +1,33 @@
+{
+  "artifacts": {
+    "ollama": {
+      "bytes": 78301616,
+      "sha256": "5c3cf935be8d896433a5caefefc8857bc2bb9e32c77c35e7c3d38b7c5919822f"
+    },
+    "whisper-cli": {
+      "bytes": 845064,
+      "sha256": "40f9b192c42ab4fe0f0df188db8bf81c11c1a0bd8e5fa5b29384f960ef92c1d5"
+    },
+    "ggml-large-v3-turbo-q5_0.bin": {
+      "bytes": 574041195,
+      "sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2"
+    },
+    "public-original.mp3": {
+      "bytes": 2583799,
+      "sha256": "f6489051c795c73cb49b319c02ad587d90ef5cb1a0519f293a64bcdfb4b4d2a7"
+    },
+    "qwen3-local-manifest": {
+      "bytes": 1022,
+      "sha256": "b3d9ba7c899cfd112df2574c6a91458a70b724c5e4e50dfffd75574b2d1648e7"
+    },
+    "qwen3-embedding-local-manifest": {
+      "bytes": 693,
+      "sha256": "d84267e5df12e19a8be357ab23b88966d61137226724f399707dee270cebccd3"
+    }
+  },
+  "runtime_profiles": {
+    "generation": "Ollama 0.40.16, Qwen3 8B Q4_K_M, P01",
+    "embedding": "Ollama 0.40.16, Qwen3 Embedding 0.6B Q8_0, P02",
+    "asr": "whisper.cpp v1.9.5, large-v3-turbo q5_0, P03"
+  }
+}

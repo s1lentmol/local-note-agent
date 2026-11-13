@@ -1,0 +1,23 @@
+{
+  "method": "Comparison with independent printed P03 text between fixed literary boundaries; not a verbatim speech WER",
+  "runs": [
+    {
+      "format": ".ogg",
+      "literary_reference_words": 234,
+      "word_edits": 1,
+      "mismatch_ratio": 0.004273504273504274
+    },
+    {
+      "format": ".wav",
+      "literary_reference_words": 234,
+      "word_edits": 2,
+      "mismatch_ratio": 0.008547008547008548
+    },
+    {
+      "format": ".mp3",
+      "literary_reference_words": 234,
+      "word_edits": 1,
+      "mismatch_ratio": 0.004273504273504274
+    }
+  ]
+}

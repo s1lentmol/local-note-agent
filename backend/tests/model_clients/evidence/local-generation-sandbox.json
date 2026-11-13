@@ -1,0 +1,18 @@
+{
+  "phase": "generation",
+  "utc": "2026-11-13T18:55:21.360914+00:00",
+  "runs": [],
+  "profile": {
+    "base_url": "http://127.0.0.1:11437/v1",
+    "timeout": 180.0,
+    "model": "qwen3:8b",
+    "max_tokens": 512,
+    "options": {
+      "temperature": 0,
+      "seed": 42,
+      "reasoning_effort": "none"
+    }
+  },
+  "status": "failed",
+  "error": "connection_failed"
+}
