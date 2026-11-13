@@ -657,6 +657,9 @@ npm --prefix frontend run preview -- --port 5174 --strictPort
 
 Production-результат — `frontend/dist`. При интеграции нужен статический
 сервер с proxy `/api` к `app.api_app`; Vite dev/preview предназначены для
-локального запуска. Подключение `npm ci` и `npm run check` к постоянному CI
-остаётся общей инфраструктурной задачей. Корневые Compose/Makefile/CI в T04
-не меняются. Результаты и ограничения проверки записаны в карточке T04.
+локального запуска. Отдельный workflow `.github/workflows/frontend.yaml`
+проверяет frontend на push/pull_request: Node.js 24, `npm ci` и `npm run check`
+в каталоге `frontend`, с кэшем npm по `frontend/package-lock.json`. Браузерные
+и тестовые зависимости не нужны. Backend workflow, Compose и Makefile не меняются.
+Раздача dist и общий контейнерный запуск остаются отдельной интеграцией.
+Результаты и ограничения проверки записаны в карточке T04.
