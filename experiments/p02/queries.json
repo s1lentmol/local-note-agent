@@ -1,0 +1,22 @@
+[
+  {"id":"q01","kind":"exact","text":"Резервное копирование PostgreSQL","expected":["n01"]},
+  {"id":"q02","kind":"paraphrase","text":"Как убедиться, что ночной дамп базы действительно пригоден для восстановления?","expected":["n01"]},
+  {"id":"q03","kind":"exact","text":"Password storage","expected":["n02"]},
+  {"id":"q04","kind":"paraphrase","text":"How should account secrets be stored so a stolen database does not reveal the original passwords?","expected":["n02"]},
+  {"id":"q05","kind":"exact","text":"Голосовые сообщения OGG Opus","expected":["n03"]},
+  {"id":"q06","kind":"paraphrase","text":"В каком виде приходит голос из Телеграма и что выдаёт распознавание?","expected":["n03"]},
+  {"id":"q07","kind":"exact","text":"Transaction boundaries","expected":["n10"]},
+  {"id":"q08","kind":"paraphrase","text":"Should we hold database locks while a neural network is computing its output?","expected":["n10"]},
+  {"id":"q09","kind":"exact","text":"Обновление поискового индекса","expected":["n13"]},
+  {"id":"q10","kind":"paraphrase","text":"Что делать со старыми векторами после редактирования текста?","expected":["n13"]},
+  {"id":"q11","kind":"cross_language","text":"Как хранить пароли с уникальной солью и необратимым хешированием?","expected":["n02"]},
+  {"id":"q12","kind":"cross_language","text":"How do I stop a cancelled background task from publishing stale results?","expected":["n09"]},
+  {"id":"q13","kind":"cross_language","text":"Как защитить загрузчик веб-страниц от обращений к внутренним сетевым адресам?","expected":["n18"]},
+  {"id":"q14","kind":"paraphrase","text":"Что проверить и взять с собой перед поездкой на двух колёсах вдоль реки?","expected":["n07"]},
+  {"id":"q15","kind":"paraphrase","text":"Why leave bread dough in the fridge until the next morning?","expected":["n06"]},
+  {"id":"q16","kind":"paraphrase","text":"Как не забыть выученные ответы через неделю?","expected":["n11"]},
+  {"id":"q17","kind":"paraphrase","text":"How can I compare embeddings by angle rather than magnitude?","expected":["n14"]},
+  {"id":"q18","kind":"paraphrase","text":"Как исключить внедрение команд при подстановке пользовательского текста в запрос к базе?","expected":["n21"]},
+  {"id":"q19","kind":"absent","text":"What is the recommended dose of an antibiotic for pneumonia?","expected":[]},
+  {"id":"q20","kind":"ambiguous","text":"Как делать резервные копии?","expected":["n01","n15"]}
+]

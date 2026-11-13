@@ -1,0 +1,23 @@
+{
+  "started_utc": "2026-11-13T15:29:11.451122+00:00",
+  "protocol_sha256": {
+    "corpus.json": "085a06ec55a2458b14853e58cb35d1968c41051149a2929598db81ef39532067",
+    "queries.json": "383c75841a2c6bc4f5629de1120a9d9db576dabb371927aa2420ad0d714b5d47",
+    "001_initial.sql": "453a74e7b804444d658e268b976fdde85c9d3c86c4be9d9f7a3789a820cba9d4"
+  },
+  "model": "qwen3-embedding:0.6b",
+  "dimension": 1024,
+  "instruction": "Given a web search query, retrieve relevant passages that answer the query",
+  "query_format": "Instruct: {instruction}\nQuery: {query}",
+  "document_format": "NFC/whitespace-normalized title + newline + body; no instruction",
+  "normalization": "Explicit client L2, float32 pgvector storage, cosine <=>",
+  "python": "3.13.18",
+  "platform": "macOS-26.7.2-arm64-arm-64bit-Mach-O",
+  "psycopg": "3.2.13",
+  "reuse": false,
+  "queries": [],
+  "errors": [
+    "URLError: <urlopen error [Errno 1] Operation not permitted>"
+  ],
+  "wall_s": 0.0012550830142572522
+}

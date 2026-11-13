@@ -1,0 +1,19 @@
+name: local-note-p02
+services:
+  db:
+    image: pgvector/pgvector:0.8.1-pg17@sha256:3e8b3adfd27b5707128f60956f62a793c3c9326ea8cfaf0eab7adccb5d700b21
+    environment:
+      POSTGRES_DB: p02_experiment
+      POSTGRES_USER: p02_experiment
+      POSTGRES_PASSWORD: p02_disposable_only
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - p02-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U p02_experiment -d p02_experiment"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+volumes:
+  p02-data:

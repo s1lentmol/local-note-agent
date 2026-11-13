@@ -1,0 +1,9 @@
+{
+  "fixed_before_first_retrieval_utc": "2026-11-13T15:29:01.523528+00:00",
+  "criteria": "18 single-answer queries: expected at top-3; ambiguous q20: both expected at top-3; q19 absent: diagnostic only, no threshold chosen after evaluation",
+  "sha256": {
+    "corpus.json": "085a06ec55a2458b14853e58cb35d1968c41051149a2929598db81ef39532067",
+    "queries.json": "383c75841a2c6bc4f5629de1120a9d9db576dabb371927aa2420ad0d714b5d47",
+    "001_initial.sql": "453a74e7b804444d658e268b976fdde85c9d3c86c4be9d9f7a3789a820cba9d4"
+  }
+}

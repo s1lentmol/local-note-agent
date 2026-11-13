@@ -1,0 +1,13 @@
+{
+  "model": "qwen3-embedding:0.6b",
+  "ollama_digest": "ac6da0dfba84a81fdbfbaf330198c33cd77c4cdfc53e8bc50eb581914a15621d",
+  "weights_sha256": "06507c7b42688469c4e7298b0a1e16deff06caf291cf0a5b278c308249c3e439",
+  "weights_bytes": 639150592,
+  "format": "GGUF",
+  "quantization": "Q8_0",
+  "dimensions": 1024,
+  "runtime": "Ollama 0.40.16",
+  "upstream": "Qwen/Qwen3-Embedding-0.6B",
+  "source": "https://ollama.com/library/qwen3-embedding:0.6b",
+  "checked_weights_checksum": true
+}
