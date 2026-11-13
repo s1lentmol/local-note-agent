@@ -1,0 +1,35 @@
+name: Backend checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.9"
+      - run: make setup
+      - run: make lint
+      # Prototype tests run separately with their optional dependencies.
+      - run: make test
+      - name: Compose build, pgvector, health and persistence on a new volume
+        run: sh scripts/check-backend.sh
+
+  prototype:
+    env:
+      HF_HUB_OFFLINE: "1"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.9.9"
+      - run: uv sync --project backend --locked --python 3.11 --extra prototype
+      - run: uv run --directory backend --locked --extra prototype pytest tests --collect-only
+      - run: uv run --directory backend --locked --extra prototype pytest tests
