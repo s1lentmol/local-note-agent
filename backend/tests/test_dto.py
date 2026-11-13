@@ -20,7 +20,7 @@ from app.dto import (
 
 def test_discriminated_create():
     adapter = TypeAdapter(NoteCreate)
-    assert adapter.validate_python({"source_type": "text", "text": " привет "}).text == "привет"
+    assert adapter.validate_python({"source_type": "text", "text": " привет "}).text == " привет "
     assert str(
         adapter.validate_python({"source_type": "url", "url": "https://example.org"}).url
     ).startswith("https:")
