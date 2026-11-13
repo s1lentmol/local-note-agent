@@ -26,6 +26,9 @@ make test
 ```sh
 cp .env.example .env
 # Замените пароль в обеих переменных POSTGRES_PASSWORD и NOTE_AGENT_DATABASE_URL.
+docker compose build api
+docker compose up --wait db
+make migrate
 make up
 make logs
 make down
@@ -35,12 +38,19 @@ Compose читает параметры из `.env`, публикует API то
 и не публикует порт БД. Специальные символы пароля в URL должны быть
 percent-encoded. Данные БД хранятся в `<compose-project>_postgres-data`;
 `make down` не удаляет volume. Для отдельного проекта задайте, например,
-`make up COMPOSE='docker compose -p notes-dev'`. Не используйте имена проектов
-и volumes экспериментов или чужих проверок.
+`export COMPOSE_PROJECT_NAME=notes-dev` перед всеми командами подготовки и запуска.
+Не используйте имена проектов и volumes экспериментов или чужих проверок.
+Первый запуск требует порядка: сборка образа → только БД с ожиданием готовности →
+явные миграции → API. `make up` запускает уже подготовленную схему и сам миграции
+не выполняет. Повторный `make migrate` безопасен.
 
-Docker запускает `app.api_app:app`. Нативный запуск API:
+Docker запускает `app.api_app:app`. Для нативного запуска нужна отдельно
+доступная PostgreSQL/pgvector: Compose не публикует её порт для хоста.
+После установки окружения экспортируйте URL этой БД и сначала примените миграции:
 
 ```sh
+export NOTE_AGENT_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/note_agent
+uv run --directory backend --locked python migrate.py
 uv run --directory backend --locked uvicorn app.api_app:app --host 127.0.0.1 --port 8000
 ```
 
@@ -48,7 +58,9 @@ uv run --directory backend --locked uvicorn app.api_app:app --host 127.0.0.1 --p
 `NOTE_AGENT_DATABASE_URL` задаёт URL PostgreSQL; `NOTE_AGENT_CORS_ORIGINS` —
 разделённые запятыми адреса клиентов. Описание доступных маршрутов — `/docs`.
 
-Проверка Docker-сборки, HTTP health, pgvector и сохранности SQL-данных:
+Проверка первого запуска на пустом volume: Docker-сборка, явные миграции
+(включая повтор), HTTP health, pgvector, создание/чтение заметки и сохранность
+SQL-данных и полной заметки после остановки и повторного запуска:
 
 ```sh
 COMPOSE_PROJECT_NAME=backend-check-unique NOTE_AGENT_PORT=18081 sh scripts/check-backend.sh
@@ -100,7 +112,7 @@ uv run --directory backend --locked --extra prototype python -m app.prepare_mode
 Команда подготовки загружает веса по сети; обычный запуск API их не скачивает.
 Не используйте каталоги экспериментальных моделей для этих команд.
 
-Сбор и запуск всех backend-тестов, включая прежние тесты прототипа:
+Сбор и запуск backend-тестов без PostgreSQL, включая прежние тесты прототипа:
 
 ```sh
 uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres --collect-only
@@ -120,8 +132,8 @@ uv run --directory backend --locked --extra prototype pytest tests --ignore=test
 миграции. Перед первым запуском прикладных процессов:
 
 ```sh
-docker compose up -d --wait db
 docker compose build api
+docker compose up --wait db
 make migrate
 make up
 ```
@@ -163,7 +175,8 @@ NOTE_AGENT_TEST_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/t02_tests
   uv run --directory backend --locked pytest tests/postgres
 ```
 
-`make test` проверяет API/DTO отдельно; `make test-db` обязателен для схемы,
+`make test` проверяет целевой backend без PostgreSQL и prototype extra;
+`make test-db` обязателен для схемы,
 мигратора и пула. CI выполняет обе команды. Полный локальный набор:
 
 ```sh
@@ -173,7 +186,8 @@ make test-db
 uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres
 ```
 
-DTO описывают контракты, маршруты появятся в следующих задачах. Идентичность
+DTO описывают контракты; текстовый CRUD подключён в T03, остальные маршруты
+добавляются в соответствующих задачах. Идентичность
 embedding-профиля хранится в БД; адаптер и обработчик должны проверять её,
 не усекать векторы и не заменять модель молча. Проверки lease при публикации
 будут реализованы worker/processing задачами.
@@ -314,6 +328,84 @@ uv run --directory backend --locked python -m app.model_clients.smoke asr \
 не требуют повторной загрузки. После smoke остановите свой ASR Ctrl-C.
 Статус `pass` означает прохождение клиентских контрактов; качество содержания
 проверяется отдельно. Remote/cloud и реальный Telegram требуют отдельных проверок.
+
+## CRUD текстовых заметок (T03)
+
+Целевое приложение `app.api_app:app` предоставляет только health и CRUD:
+`POST /api/v1/notes`, `GET /api/v1/notes`, `GET/PATCH/DELETE /api/v1/notes/{id}`.
+Прежний `app.main` и его маршруты остаются отдельным прототипом.
+При заданном `NOTE_AGENT_DATABASE_URL` lifespan открывает пул PostgreSQL и
+закрывает его при остановке. Миграции обязательны **до** запуска API;
+приложение их не выполняет. При пустом URL доступен health, CRUD отвечает `503`.
+Если заданный URL недоступен, запуск завершается ошибкой. Отсутствующие миграции
+не применяются автоматически; подготовку схемы проверяйте отдельной командой.
+Модельные endpoint и ключи CRUD не требуются.
+
+```sh
+export NOTE_AGENT_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/note_agent
+uv run --directory backend --locked python migrate.py
+uv run --directory backend --locked uvicorn app.api_app:app --host 127.0.0.1 --port 8000
+```
+
+Пример создания (в другом терминале):
+
+```sh
+curl -i http://127.0.0.1:8000/api/v1/notes \
+  -H 'Content-Type: application/json' \
+  -d '{"source_type":"text","text":"Первая строка\nПолный исходный текст"}'
+curl 'http://127.0.0.1:8000/api/v1/notes?limit=20&offset=0&source_type=text&ingestion_status=ready'
+```
+
+Заголовок необязателен: первая строка текста, не более 200 символов.
+Текст сохраняется с пробелами и переводами строк; пустое содержимое, NUL,
+более 100000 символов и посторонние поля отклоняются. Новая заметка имеет
+`ready/not_requested`, без process job и фиктивных результатов модели.
+Фильтры списка: `source_type`, `ingestion_status`, `processing_status`;
+порядок всегда `created_at DESC, id DESC`. `total` и страница читаются в одном
+снимке PostgreSQL. Лимит 1–100, offset неотрицательный.
+
+PATCH принимает `title` и/или `extracted_text`, без null/пустых значений;
+неготовое извлечение даёт `409`, неизвестная/удалённая заметка — `404`.
+Исходный `source.original_text` не меняется. В одной транзакции блокируется
+заметка, затем отменяются её активные jobs, очищаются chunks, автоматические
+связи, enrichment и автоматические поля/ошибки. Ручные теги и подборки сохраняются.
+Обработка пока выключена: после PATCH остаётся `not_requested`, process job
+не создаётся. DELETE блокирует заметку перед jobs, ставит `deleted_at`, отменяет
+активные задания и создаёт cleanup; возвращает `204`. Повтор DELETE сохраняет
+активный cleanup и допускает новую попытку после его ошибки.
+
+Удаление немедленно исключает заметку из CRUD, но физическая очистка оригиналов
+и полный цикл пересоздания индекса/обогащения ещё требуют T14 и интеграции
+обработчиков. Создание cleanup не означает, что очистка выполнена.
+Маршруты будущих функций не зарегистрированы. Ошибки имеют вид
+`{"error":{"code":"validation_error","message":"Некорректные параметры запроса."}}`;
+валидация — `422`, сбой БД во время запроса — `503`, неожиданная ошибка — `500`.
+
+Общий Python-слой для следующих адаптеров не зависит от FastAPI:
+
+```python
+from app.dto import NoteListQuery, NotePatch, TextNoteCreate
+from app.postgres import Database
+from app.services.notes import NotesService
+
+with Database(database_url) as database:
+    notes = NotesService(database)
+    note = notes.create(TextNoteCreate(source_type="text", text="Исходный текст"))
+    full_note = notes.get(note.id)
+    page = notes.list(NoteListQuery(limit=20))
+    edited = notes.patch(note.id, NotePatch(extracted_text="Исправленный текст"))
+    notes.delete(note.id)
+```
+
+`NotesService` принимает целевые DTO и UUID; самостоятельно владеет короткими
+транзакциями. `NoteError` содержит безопасные `code/message`, HTTP-коды назначает
+API. Все SQL-запросы находятся в repositories; ввод передаётся параметрами.
+Для CRUD и SQL обязательна `make test-db`: она использует отдельный контейнер
+PostgreSQL/pgvector без volumes. Тесты включают исходный текст, rollback при
+сбое посреди записи, отмену jobs, фильтры/пагинацию и порядок блокировок.
+`make test`/`make lint` проверяют остальной целевой backend; старые тесты
+запускаются с `--extra prototype` по инструкции выше. Новых зависимостей,
+миграций и отдельных CI-команд для T03 не требуется.
 
 ## T06: последовательный PostgreSQL worker
 

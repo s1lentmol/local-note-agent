@@ -6,6 +6,7 @@ from typing import Annotated, Generic, Literal, TypeVar
 from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     AwareDatetime,
     BaseModel,
     ConfigDict,
@@ -18,6 +19,17 @@ from pydantic import (
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100000)]
+
+
+def validate_content(value: str) -> str:
+    if not value.strip() or "\x00" in value:
+        raise ValueError("Text must contain non-whitespace characters and no NUL")
+    return value
+
+
+OriginalText = Annotated[
+    str, StringConstraints(min_length=1, max_length=100000), AfterValidator(validate_content)
+]
 Nonempty = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 Limit = Annotated[int, Field(ge=1, le=100)]
 
@@ -80,8 +92,8 @@ class ErrorResponse(DTO):
 
 class TextNoteCreate(DTO):
     source_type: Literal["text"]
-    title: Title | None = None
-    text: Text
+    title: Annotated[Title, AfterValidator(validate_content)] | None = None
+    text: OriginalText
 
 
 class UrlNoteCreate(DTO):
@@ -94,8 +106,8 @@ NoteCreate = Annotated[TextNoteCreate | UrlNoteCreate, Field(discriminator="sour
 
 
 class NotePatch(DTO):
-    title: Title | None = None
-    extracted_text: Text | None = None
+    title: Annotated[Title, AfterValidator(validate_content)] | None = None
+    extracted_text: OriginalText | None = None
 
     @model_validator(mode="after")
     def validate_patch(self):

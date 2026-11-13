@@ -16,6 +16,9 @@ React и TypeScript. Архитектура предусматривает от�
 cp .env.example .env
 # Замените пароль в POSTGRES_PASSWORD и NOTE_AGENT_DATABASE_URL в .env.
 make setup
+docker compose build api
+docker compose up --wait db
+make migrate
 make up
 curl --fail http://127.0.0.1:8000/api/v1/health
 make down
