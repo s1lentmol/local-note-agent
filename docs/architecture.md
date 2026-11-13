@@ -181,6 +181,32 @@ HTTP-обработчиков; Pydantic описывает входы и вых�
 `uploads/<attachment_id>/original.jpg`. В API его не возвращаем.
 Пользовательское имя файла используется только как метаданные.
 
+Происхождение Telegram: `sources.channel`, `delivery_scope` (идентичность бота),
+`delivery_id` (ID доставки/update), `telegram_chat_id`, `telegram_message_id`.
+Оригинальный `forward_origin` и прочие метаданные пересылки сохраняются в
+`metadata`; они не подменяются ID доставки. Уникальность
+`(channel, delivery_scope, delivery_id)` предотвращает повторное создание заметки.
+Новая отправка получает другой delivery ID даже для того же файла. У batch
+внешний ID — media group ID в области бота и чата; item хранит delivery ID.
+Сообщения диалога имеют уникальный delivery ID внутри conversation.
+Для Telegram conversation внешний ID — chat ID в области бота.
+
+`notes.title_is_explicit` защищает заданный пользователем заголовок;
+`manual_tags` отделены от автоматических `tags`.
+Имена полей порядка: `chunks.position` и `import_items.position` (с нуля).
+FK `(job_id, note_id)` у chunks/enrichments запрещает результат чужой заметки.
+Проверку актуальной lease/token при публикации выполняет прикладной слой T06/T08
+под блокировкой заметки; наличие колонок само по себе эту проверку не заменяет.
+
+`embedding_profiles` содержит единственный профиль пространства векторов:
+модель P02 `qwen3-embedding:0.6b`, digest из manifest P02, 1024, cosine,
+L2 и полный query instruction. Chunks ссылаются на него, столбец — `vector(1024)`;
+несовместимая размерность вызывает ошибку. Обновление профиля при наличии chunks
+запрещено; прикладной слой должен сверять идентичность результата с профилем
+под блокировкой профиля перед публикацией. Перед сменой профиля индекс очищается.
+Граф хранит неориентированные пары в каноническом порядке UUID
+`source_note_id < target_note_id`, score в диапазоне [-1, 1].
+
 ### Дополнительные сущности
 
 | Таблица | Данные |
@@ -631,11 +657,11 @@ Streaming опционален: без него ответ возвращает�
 ```text
 backend/
   app/
-    main.py                 # Создание FastAPI и подключение маршрутов
+    api_app.py              # Целевой FastAPI (main.py сохраняет SQLite-прототип)
     config.py               # Пути, лимиты, включение обогащения
-    db.py                   # Пул Psycopg и транзакции
+    postgres.py             # Пул Psycopg и явные транзакции (db.py — прототип)
     repositories/           # Явные SQL-запросы к notes, jobs, chunks и другим таблицам
-    schemas.py              # Модели запросов и ответов
+    dto.py                  # Целевые DTO (schemas.py — прототип)
     api/
       notes.py
       imports.py

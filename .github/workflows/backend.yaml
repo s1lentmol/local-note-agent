@@ -17,6 +17,7 @@ jobs:
       - run: make lint
       # Prototype tests run separately with their optional dependencies.
       - run: make test
+      - run: make test-db
       - name: Compose build, pgvector, health and persistence on a new volume
         run: sh scripts/check-backend.sh
 
@@ -31,5 +32,5 @@ jobs:
         with:
           version: "0.9.9"
       - run: uv sync --project backend --locked --python 3.11 --extra prototype
-      - run: uv run --directory backend --locked --extra prototype pytest tests --collect-only
-      - run: uv run --directory backend --locked --extra prototype pytest tests
+      - run: uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres --collect-only
+      - run: uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres
