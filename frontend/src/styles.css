@@ -1,0 +1,381 @@
+:root {
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #22362e;
+  background: #f5f6f2;
+  font-synthesis: none;
+  line-height: 1.55;
+  color-scheme: light;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+a {
+  color: #245a49;
+  text-underline-offset: 4px;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+button,
+.button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.65rem 1rem;
+  border: 1px solid #bdc9c0;
+  border-radius: 8px;
+  background: #fff;
+  color: #284638;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 44px;
+}
+button:hover,
+.button:hover {
+  background: #edf2eb;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.primary {
+  background: #245a49;
+  color: #fff;
+  border-color: #245a49;
+}
+.primary:hover {
+  background: #184434;
+}
+.danger {
+  color: #9a342c;
+  border-color: #d6a29d;
+}
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 3px solid #b47827;
+  outline-offset: 3px;
+}
+input,
+textarea,
+select {
+  display: block;
+  width: 100%;
+  border: 1px solid #b9c5bc;
+  border-radius: 7px;
+  background: #fff;
+  color: #22362e;
+  padding: 0.7rem;
+  margin-top: 0.4rem;
+  min-height: 44px;
+}
+textarea {
+  resize: vertical;
+  line-height: 1.65;
+}
+label {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+label .muted {
+  font-weight: 400;
+}
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.2rem max(1.25rem, calc((100vw - 1120px) / 2));
+  border-bottom: 1px solid #dce2d9;
+  background: #fff;
+}
+.brand {
+  font-size: 1.3rem;
+  font-weight: 750;
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  text-decoration: none;
+}
+main {
+  max-width: 1120px;
+  min-height: 75vh;
+  padding: 2.5rem 1.25rem;
+  margin: auto;
+}
+footer {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+  color: #637467;
+  font-size: 0.85rem;
+  border-top: 1px solid #dce2d9;
+}
+.page-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+h1 {
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+  margin: 0.4rem 0 1rem;
+  overflow-wrap: anywhere;
+}
+h2 {
+  font-size: 1.15rem;
+  line-height: 1.4;
+  margin: 0.7rem 0;
+  overflow-wrap: anywhere;
+}
+p {
+  margin: 0.5rem 0 1rem;
+}
+.eyebrow {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  color: #546a56;
+  margin: 0;
+}
+.muted {
+  color: #607264;
+}
+.filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 140px;
+  gap: 1rem;
+  background: #e9eee5;
+  padding: 1.2rem;
+  border-radius: 12px;
+}
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin: 1.3rem 0;
+}
+.toolbar p {
+  margin: 0;
+  color: #607264;
+  font-size: 0.9rem;
+}
+.notes {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+}
+.notes li {
+  min-width: 0;
+}
+.note-link {
+  display: block;
+  background: #fff;
+  padding: 1.4rem;
+  border: 1px solid #dce2d9;
+  border-radius: 12px;
+  text-decoration: none;
+  height: 100%;
+  color: inherit;
+}
+.note-link:hover {
+  border-color: #63876d;
+  box-shadow: 0 4px 20px #24432a09;
+}
+.note-link h2 {
+  font-size: 1.3rem;
+  margin: 0.8rem 0 1.3rem;
+}
+.note-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.78rem;
+  color: #607264;
+}
+.preview {
+  color: #607264;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.statuses {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+}
+.badge {
+  padding: 0.3rem 0.6rem;
+  border-radius: 5px;
+  background: #edf0eb;
+  color: #4f6155;
+}
+.badge.ready {
+  background: #e5f1e6;
+  color: #285e34;
+}
+.badge.failed {
+  background: #fae8e4;
+  color: #92352d;
+}
+.badge.queued,
+.badge.processing {
+  background: #fff0d5;
+  color: #79520e;
+}
+.pagination {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 2rem;
+  font-size: 0.9rem;
+}
+.empty {
+  text-align: center;
+  padding: 3.5rem 1rem;
+  border: 1px dashed #b9c5bc;
+  border-radius: 12px;
+}
+.error {
+  padding: 1rem;
+  border: 1px solid #d8a098;
+  border-radius: 8px;
+  background: #fff0ec;
+  color: #862e25;
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+}
+.error p {
+  margin: 0 0 0.5rem;
+}
+.actions {
+  display: flex;
+  gap: 0.7rem;
+  flex-wrap: wrap;
+  margin: 1.5rem 0;
+}
+.back {
+  display: inline-block;
+  margin-bottom: 1.5rem;
+}
+.detail {
+  max-width: 860px;
+  margin: auto;
+}
+.detail section {
+  margin-top: 2rem;
+}
+.detail .statuses {
+  margin: 1.5rem 0;
+}
+.full-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  background: #fff;
+  border: 1px solid #dce2d9;
+  border-radius: 10px;
+  padding: 1.5rem;
+  line-height: 1.8;
+}
+.original .full-text {
+  background: #eef0e9;
+}
+.delete-confirm {
+  padding: 1.2rem;
+  border: 1px solid #d8a098;
+  border-radius: 10px;
+  background: #fff4ef;
+}
+.editor {
+  max-width: 860px;
+  margin: 1.5rem auto;
+}
+.editor label {
+  display: block;
+  margin-bottom: 1.3rem;
+}
+fieldset {
+  padding: 0;
+  border: 0;
+  margin: 0;
+  min-width: 0;
+}
+.counter {
+  text-align: right;
+  font-size: 0.8rem;
+}
+.editor .actions {
+  margin-bottom: 0;
+}
+@media (max-width: 700px) {
+  main {
+    padding-top: 1.5rem;
+  }
+  .site-header > .muted {
+    display: none;
+  }
+  .page-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .filters {
+    grid-template-columns: 1fr 1fr;
+    padding: 1rem;
+    gap: 0.8rem;
+  }
+  .notes {
+    grid-template-columns: 1fr;
+  }
+  .note-meta {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .pagination {
+    gap: 0.5rem;
+    font-size: 0.8rem;
+  }
+  .pagination button {
+    padding: 0.6rem;
+  }
+  .full-text {
+    padding: 1rem;
+  }
+  .note-link {
+    padding: 1.1rem;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  button,
+  .note-link {
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+}
