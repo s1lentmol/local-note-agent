@@ -100,7 +100,7 @@ uv run --directory backend --locked --extra prototype python -m app.prepare_mode
 Команда подготовки загружает веса по сети; обычный запуск API их не скачивает.
 Не используйте каталоги экспериментальных моделей для этих команд.
 
-Сбор и запуск всех backend-тестов, включая прежние тесты прототипа:
+Сбор и запуск backend-тестов без PostgreSQL, включая прежние тесты прототипа:
 
 ```sh
 uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres --collect-only
@@ -163,7 +163,8 @@ NOTE_AGENT_TEST_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/t02_tests
   uv run --directory backend --locked pytest tests/postgres
 ```
 
-`make test` проверяет API/DTO отдельно; `make test-db` обязателен для схемы,
+`make test` проверяет целевой backend без PostgreSQL и prototype extra;
+`make test-db` обязателен для схемы,
 мигратора и пула. CI выполняет обе команды. Полный локальный набор:
 
 ```sh
