@@ -11,10 +11,12 @@ from psycopg_pool import PoolTimeout
 from starlette.exceptions import HTTPException
 
 from app.api.note_crud import router
+from app.api.search import router as search_router
 from app.config import Settings
 from app.dto import ErrorResponse
 from app.postgres import Database
 from app.services.notes import NoteError, NotesService
+from app.services.search import SearchError, SearchService
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -24,12 +26,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app):
         database = Database(settings.database_url) if settings.database_url else None
         app.state.notes = None
+        app.state.search = None
         try:
             if database is not None:
                 database.open()
                 app.state.notes = NotesService(
                     database, processing_enabled=settings.processing_enabled
                 )
+                app.state.search = SearchService(database)
             yield
         finally:
             if database is not None:
@@ -40,6 +44,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def error(status, code, message):
         payload = ErrorResponse(error={"code": code, "message": message})
         return JSONResponse(status_code=status, content=payload.model_dump(mode="json"))
+
+    @app.exception_handler(SearchError)
+    async def search_error(request: Request, exc: SearchError):
+        return error(503, exc.code, "Семантический поиск временно недоступен.")
 
     @app.exception_handler(NoteError)
     async def note_error(request: Request, exc: NoteError):
@@ -69,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return error(500, "internal_error", "Внутренняя ошибка сервера.")
 
     app.include_router(router)
+    app.include_router(search_router)
     app.state.settings = settings
     app.add_middleware(
         CORSMiddleware,

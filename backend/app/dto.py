@@ -253,7 +253,7 @@ class CollectionNotesAdd(DTO):
 
 
 class SearchRequest(DTO):
-    query: Text
+    query: Annotated[Text, AfterValidator(validate_content)]
     source_type: SourceType | None = None
     date_from: AwareDatetime | None = None
     date_to: AwareDatetime | None = None

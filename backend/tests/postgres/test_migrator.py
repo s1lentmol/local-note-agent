@@ -1,4 +1,3 @@
-import hashlib
 import threading
 from concurrent.futures import ThreadPoolExecutor
 
@@ -9,11 +8,11 @@ from migrate import MIGRATIONS, MigrationError, discover, migrate
 
 
 def test_empty_database_and_repeat(database_url):
-    assert migrate(database_url) == [1]
+    assert migrate(database_url) == [1, 2]
     assert migrate(database_url) == []
     with psycopg.connect(database_url) as conn:
         assert conn.execute("SELECT number, checksum FROM schema_migrations").fetchall() == [
-            (1, hashlib.sha256((MIGRATIONS / "001_initial.sql").read_bytes()).hexdigest())
+            (number, checksum) for number, _, checksum in discover(MIGRATIONS)
         ]
         tables = {
             r[0]
