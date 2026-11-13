@@ -808,3 +808,77 @@ sh scripts/test-postgres.sh -q -k telegram
 Тесты используют синтетические aiogram updates и записывающую HTTP-сессию;
 SQL-сценарии выполняются в отдельном контейнере без volumes. Реальную доставку
 проверяйте отдельно только с предоставленным тестовым токеном и тестовым текстом.
+
+## T13: обогащение в существующем process
+
+После публикации индекса тот же handler опционально вызывает `TextGenerator.json`
+с существующей DTO `Enrichment`. Результат повторно проверяется Pydantic;
+summary, автоматические tags, category, entities и запись enrichments публикуются
+атомарно через T06 (`notes → jobs`, token, действующая lease). Затем worker
+завершает тот же job обычным механизмом T06. Модель вызывается после закрытия
+соединения чтения, вне транзакций. Заголовок, manual_tags и подборки не меняются.
+
+Обогащение по умолчанию выключено. Для включения добавьте в окружение **worker**:
+
+```sh
+export NOTE_AGENT_ENRICHMENT_ENABLED=true
+export LLM_BASE_URL=http://127.0.0.1:11435/v1
+export LLM_MODEL=qwen3:8b
+uv run --directory backend --locked python -m app.postgres_worker
+```
+
+Остальные условия запуска, постановка новых заметок и backlog — в разделе T08.
+`NOTE_AGENT_PROCESSING_ENABLED` управляет постановкой process в API;
+`NOTE_AGENT_ENRICHMENT_ENABLED` управляет продолжением process в worker.
+При выключенном обогащении LLMSettings и генератор не создаются: достаточно
+embeddings. Включённый недоступный endpoint, неверный JSON/схема и превышение
+бюджета дают `failed` с существующей безопасной ошибкой `handler_failed`, без
+provider body и текста заметки. Записанный индекс и исходный текст остаются.
+Явный retry повторяет индексирование и генерацию; chunks и provenance заменяются.
+Автоматических повторов генерации и отдельных enrich jobs нет.
+
+Собственные настройки (префикс `NOTE_AGENT_ENRICHMENT_`):
+
+| Переменная | По умолчанию | Назначение |
+|---|---:|---|
+| `ENABLED` | false | Явное включение |
+| `CONTEXT_TOKENS` | 8192 | Бюджет полного запроса и ответа |
+| `RESPONSE_TOKENS` | 1024 | Передаётся адаптеру как max_tokens вместо LLM_MAX_TOKENS |
+| `MAX_INPUT_BYTES` | 6000 | UTF-8 размер JSON с title и text |
+| `MAX_OUTPUT_BYTES` | 8192 | UTF-8 размер сериализованной валидированной DTO |
+
+Оценка входа консервативная: один UTF-8 байт за токен для byte-level tokenizer,
+плюс system prompt, резерв 256 токенов на framing и RESPONSE_TOKENS.
+Это не точный tokenizer; конфигурация должна соответствовать контексту endpoint.
+Длинные заметки не обрезаются и не разбиваются на многоступенчатое summary:
+после индекса получают failed при превышении бюджета. Ограничение ответа
+передаётся серверу; дополнительно проверяется размер DTO перед публикацией.
+Серверный лимит ответа или неверный формат не считаются успехом.
+
+Provenance хранит точный настроенный `LLM_MODEL` и версию application prompt
+`note-enrichment-v1`. OpenAI-compatible контракт не предоставляет проверку digest
+генеративной модели: используйте стабильный идентификатор ревизии на endpoint.
+Текст заметки передаётся отдельным JSON data record в user message;
+system prompt запрещает выполнять инструкции из содержимого.
+В карточке заметки отображаются четыре автоматических поля обычным React-текстом.
+
+Постоянные проверки без весов/модельного runtime:
+
+```sh
+make lint test
+sh scripts/test-postgres.sh -q
+# Только SQL-сценарии T13, в отдельной одноразовой БД:
+sh scripts/test-postgres.sh -q -k process_enrichment
+cd frontend
+npm ci --ignore-scripts
+npm run check
+```
+
+Новые unit- и PostgreSQL-тесты автоматически входят в существующие Makefile/CI
+команды. SQL-набор использует настоящую изолированную PostgreSQL/pgvector;
+генерация детерминирована тестовым TextGenerator. Отдельный тест production
+factory использует настоящий T07 JSON-mode HTTP-клиент и локальный тестовый
+endpoint, в том числе с HTTP 503; это не smoke реальной модели.
+Реальный JSON-mode smoke выполняйте отдельно командой generation из раздела T07,
+после согласования свободного runtime. Переиспользуйте существующие веса/runtime;
+не запускайте тяжёлые smoke одновременно с другими агентами.

@@ -4,15 +4,18 @@ import math
 import os
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import psycopg
 from psycopg.rows import dict_row
 
+from app.enrichment import EnrichmentResult, EnrichmentSettings, build_enrichment
 from app.job_runner.worker import HandlerBinding
-from app.model_clients.contracts import Embedder
+from app.model_clients.contracts import Embedder, TextGenerator
 from app.model_clients.embeddings import OllamaEmbedder
-from app.model_clients.settings import EmbeddingSettings
+from app.model_clients.generation import OpenAITextGenerator
+from app.model_clients.settings import EmbeddingSettings, LLMSettings
+from app.repositories.enrichment import EnrichmentRepository
 from app.repositories.index import IndexRepository, IndexResult, SpaceProfile
 
 
@@ -81,6 +84,9 @@ class ProcessHandler:
     chunks: ChunkSettings
     embedder_factory: Callable[[EmbeddingSettings], Embedder] = OllamaEmbedder
 
+    enrichment: EnrichmentSettings = field(default_factory=EnrichmentSettings)
+    generator_factory: Callable[[LLMSettings], TextGenerator] = OpenAITextGenerator
+
     def __call__(self, job, context):
         profile = SpaceProfile.from_settings(self.embedding)
         # Autocommit reads end before the HTTP request; no model work in a transaction.
@@ -101,7 +107,28 @@ class ProcessHandler:
             self.chunks,
         )
         context.publish(result)
-        # T13 continues this same function after index publication.
+        if self.enrichment.enabled:
+            llm = LLMSettings.from_env().model_copy(
+                update={"max_tokens": self.enrichment.response_tokens}
+            )
+            context.publish(
+                build_enrichment(
+                    note["title"],
+                    note["extracted_text"],
+                    self.generator_factory(llm),
+                    llm,
+                    self.enrichment,
+                )
+            )
+
+
+def publish_process(conn, job, result):
+    if isinstance(result, IndexResult):
+        IndexRepository.publish(conn, job, result)
+    elif isinstance(result, EnrichmentResult):
+        EnrichmentRepository.publish(conn, job, result)
+    else:
+        raise TypeError("Unknown process result")
 
 
 def handlers():
@@ -111,7 +138,8 @@ def handlers():
                 os.environ["NOTE_AGENT_DATABASE_URL"],
                 EmbeddingSettings.from_env(),
                 ChunkSettings.from_env(),
+                enrichment=EnrichmentSettings.from_env(),
             ),
-            IndexRepository.publish,
+            publish_process,
         )
     }

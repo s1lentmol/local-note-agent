@@ -531,6 +531,15 @@ function Detail({ id }: { id: string }) {
                   </p>
                 )}
               </section>
+              {(note.summary || note.tags.length > 0 || note.category || note.entities.length > 0) && (
+                <section aria-label="Автоматические метаданные">
+                  <h2>Обогащение</h2>
+                  {note.summary && <p className="full-text">{note.summary}</p>}
+                  {note.tags.length > 0 && <p>Теги: {note.tags.join(", ")}</p>}
+                  {note.category && <p>Категория: {note.category}</p>}
+                  {note.entities.length > 0 && <p>Сущности: {note.entities.join(", ")}</p>}
+                </section>
+              )}
               <section className="original">
                 <h2>Оригинал</h2>
                 {note.source.original_text !== null ? (
