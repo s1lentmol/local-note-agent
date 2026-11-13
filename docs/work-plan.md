@@ -368,7 +368,8 @@ Ruff/format, shell syntax и diff — PASS. Полный прогон прото
 CRUD без моделей работает; интеграция производных данных завершается в T14.
 
 Статус: `review`; отдельные ветка `task/t03` и worktree
-`/private/tmp/local-note-agent-t03`, без коммитов и слияния.
+`/private/tmp/local-note-agent-t03`. Реализация закоммичена;
+интеграция в основную ветку ещё не выполнена.
 Область изменений: SQL repositories `backend/app/repositories/{notes,sources}.py`,
 общий `app.services.notes.NotesService`, отдельные маршруты `app.api.note_crud`,
 `app.api_app`, точечное уточнение DTO текста, CRUD/health/DTO-тесты,
