@@ -8,7 +8,7 @@ from app.dto import NoteDetail, NoteListItem, NoteListQuery, NotePatch, Page, Te
 from app.jobs_repository import JobsRepository
 from app.postgres import Database
 from app.repositories.notes import NotesRepository
-from app.repositories.sources import SourcesRepository
+from app.repositories.sources import DuplicateDelivery, SourcesRepository, TelegramDelivery
 from app.services.processing import enqueue_process
 
 
@@ -30,14 +30,28 @@ class NotesService:
         row["attachments"] = SourcesRepository(conn).attachments(note_id)
         return NoteDetail.model_validate(row)
 
-    def create(self, request: TextNoteCreate) -> NoteDetail:
+    def create(
+        self, request: TextNoteCreate, *, delivery: TelegramDelivery | None = None
+    ) -> NoteDetail:
         request = TextNoteCreate.model_validate(request)
         title = request.title or request.text.strip().splitlines()[0].strip()[:200]
         with self.database.transaction() as conn:
-            note_id = NotesRepository(conn).create(title, request.text, request.title is not None)
-            SourcesRepository(conn).create_text(note_id, request.text)
-            if self.processing_enabled:
-                enqueue_process(conn, note_id)
+            sources = SourcesRepository(conn)
+            try:
+                # Savepoint removes the losing note as well as any derived writes.
+                # PostgreSQL's unique constraint waits for concurrent deliveries.
+                with conn.transaction():
+                    note_id = NotesRepository(conn).create(
+                        title, request.text, request.title is not None
+                    )
+                    if delivery is None:
+                        sources.create_text(note_id, request.text)
+                    else:
+                        sources.create_telegram_text(note_id, request.text, delivery)
+                    if self.processing_enabled:
+                        enqueue_process(conn, note_id)
+            except DuplicateDelivery:
+                note_id = sources.telegram_note_id(delivery)
             return self._detail(conn, note_id)
 
     def get(self, note_id: UUID) -> NoteDetail:

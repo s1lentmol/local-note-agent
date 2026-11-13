@@ -78,7 +78,7 @@ Mac одновременно не запускаются без необходи
 | T02 | PostgreSQL, SQL-схема, миграции и DTO | T01 | done |
 | T03 | Общий CRUD на явном SQL | T02 | done |
 | T04 | Веб: заметки и состояния | T03 | done |
-| T05 | Telegram: текст и пересылки | T03 | todo |
+| T05 | Telegram: текст и пересылки | T03 | review |
 | T06 | Один worker и PostgreSQL jobs | T02 | done |
 | T07 | Клиенты генерации, embeddings и ASR | T01, P01, P02, P03 | done |
 | T08 | Индекс в общем обработчике process | T03, T06, T07 | done |
@@ -530,6 +530,95 @@ backend workflow, Compose, Makefile и зависимости frontend не из
 aiogram вызывает общий прикладной слой, сохраняет происхождение пересылки.
 Приёмка: текст/пересылка видны в вебе, повтор доставки не создаёт дубликат,
 повторная самостоятельная отправка сохраняется. Голос добавляется в T15.
+
+Состояние: `review`; T05 принята участником по статическому ревью и
+закоммичена. Worktree: `/private/tmp/local-note-agent-t05`.
+Интеграция T05 в основную ветку ещё не выполнена.
+Блокировок реализации нет; реальная Telegram-проверка требует предоставленного
+тестового токена (в окружении отсутствует). T04/T08 использованы как уже
+принятые и интегрированные, независимо от прежних статусов таблицы.
+
+Изменённое поведение и область:
+
+- `backend/app/bot/`: отдельный `python -m app.bot`, настройки только из
+  серверного окружения, long polling aiogram, обычный текст и текстовые пересылки.
+  Передаётся `title=None`: общий сервис выводит автоматический заголовок из
+  первой строки с `title_is_explicit=false`, полный оригинал сохраняется.
+- `NotesService.create(..., delivery=...)` и sources repository: внутренний
+  TelegramDelivery описан в архитектуре, HTTP DTO не менялись. Сохраняются
+  channel, числовой bot ID, update/chat/message ID и доступный forward_origin
+  всех четырёх типов в metadata. Уникальный ключ PostgreSQL и savepoint
+  откатывают проигравшую заметку при конкурентной доставке; существующая
+  возвращается без нового process. Другой update или бот дают другую заметку.
+  Повтор после удаления не восстанавливает заметку и возвращает ошибку.
+- Process из T08 ставится в той же транзакции при включённом флаге; модели
+  при сохранении не вызываются. Успех отправляется после commit; ошибка записи
+  даёт сообщение об ошибке. Остановка ждёт SQL-поток перед закрытием пула,
+  HTTP-сессия закрывается в finally, включая ошибки запуска.
+- `backend/pyproject.toml`, `backend/uv.lock`: aiogram 3.31.0 и зависимости.
+  Ограничение aiogram на Pydantic потребовало 2.13.5 вместо 2.14.3 и
+  pydantic-core 2.46.5 вместо 2.50.4; прочие прежние версии сохранены.
+- Постоянные тесты: `tests/test_telegram.py`, `tests/telegram_fixtures.py`,
+  `tests/postgres/test_telegram.py` (8 без БД + 14 SQL-сценариев).
+  Инструкции запуска/остановки и настройки — только свой раздел development.md.
+  Схема/миграции, поиск, app.api_app, README, Compose/Makefile/CI и чужие worktree
+  не изменялись. Общие backend-зависимости/lockfile велись в T05 по поручению
+  участника; более раннее распределение итерации не применялось к T09.
+
+Фактические проверки (Python 3.11.14; синтетические данные, без моделей):
+
+- `uv add --project backend 'aiogram>=3.13,<4' --no-sync` и
+  `uv sync --project backend --locked --python 3.11` — exit 0.
+- Ruff check с `--fix` и format только изменяемых Python-файлов — exit 0.
+- До исправления заголовка `make lint test` — exit 0: Ruff lint/format всего backend
+  (80 файлов), 104 passed. Включает реальный цикл aiogram polling с тестовым
+  источником updates: остановка дожидается сохранения и закрывает ресурсы.
+- До исправления заголовка `sh scripts/test-postgres.sh -q` — exit 0, 86 passed, без skip.
+  Отдельный PostgreSQL 17/pgvector 0.8.1 контейнер без volumes, случайный порт,
+  отдельная схема на тест; контейнер удалён скриптом. Проверены повтор update,
+  четыре конкурентные доставки через барьер перед INSERT, отсутствие лишних
+  notes/sources/jobs, новая отправка одинакового текста, область бота,
+  provenance всех типов, флаг обработки, rollback при ошибке enqueue и
+  инъекции перед commit с успешной последующей доставкой, повтор после удаления.
+  Отдельная SQL-сессия видит committed note/source/job до отправки успеха.
+  HTTP CRUD читает сохранённую Telegram-заметку через неизменённый app.api_app.
+- `uv tool run --from uv==0.9.9 uv lock --project backend --check` — exit 0,
+  lockfile совместим с версией uv из Docker/CI.
+- `git diff --check`, `git diff --cached --check` — exit 0.
+
+Исправление после статического ревью: бот передаёт `title=None` для текста
+и пересылок, автоматический заголовок формируется только общим NotesService.
+Удалены настройка заголовка и связанные параметры обработчика/dispatcher.
+SQL-сценарий для обычного текста и всех четырёх forward_origin проверяет
+заголовок «Заголовок», `title_is_explicit=false`, полный extracted_text и original_text.
+Дедупликация, provenance и постановка process сохранены. Состояние — `review`.
+
+Повторные проверки после исправления:
+
+- `uv run --directory backend --locked ruff format app/bot tests/test_telegram.py
+  tests/postgres/test_telegram.py` — exit 0, 6 файлов без изменений.
+- `make lint` — exit 0, Ruff check и format --check всех 80 файлов прошли.
+- `uv run --directory backend --locked pytest tests/test_telegram.py -q` —
+  exit 0, 8 passed.
+- `sh scripts/test-postgres.sh -q -k telegram` — exit 0, 14 passed,
+  72 deselected, без skip; одноразовый PostgreSQL/pgvector без volumes,
+  контейнер удалён. Повторены конкурентная доставка, новая отправка того же
+  текста, rollback, флаг обработки, постановка process и заголовок.
+- `git diff --check`, `git diff --cached --check` — exit 0.
+  `git diff --no-index --check /dev/null <file>` для каждого untracked-файла —
+  без сообщений о whitespace (exit 1 означает наличие нового файла).
+
+Ограничения: тестового токена нет, реальная Telegram-сеть не вызывалась;
+ручная проверка в браузере и реальные модели не запускались. Пять старых
+SQLite/ORM-модулей не входят в make test и отдельно в T05 не прогонялись.
+Один существующий StarletteDeprecationWarning о httpx в обоих наборах.
+Никаких голоса, файлов, media groups, поиска-команд, диалога, агента и авторизации
+не добавлено. Ошибка отправки ответа после commit не отменяет заметку;
+повтор того же update безопасен. Ошибка сохранения требует повторной отправки
+сообщения пользователем. Библиотечные логи aiogram подавлены для исключения
+утечки token через exception; CLI выдаёт фиксированный безопасный код ошибки.
+При первоначальной передаче исполнителем коммиты, merge и rebase не выполнялись;
+результат был передан как unstaged/untracked изменения своего worktree.
 
 ### T06. Worker
 
