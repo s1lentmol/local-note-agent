@@ -314,3 +314,108 @@ uv run --directory backend --locked python -m app.model_clients.smoke asr \
 не требуют повторной загрузки. После smoke остановите свой ASR Ctrl-C.
 Статус `pass` означает прохождение клиентских контрактов; качество содержания
 проверяется отдельно. Remote/cloud и реальный Telegram требуют отдельных проверок.
+
+## T06: последовательный PostgreSQL worker
+
+Отдельная точка входа — `app.postgres_worker`; прототип `app.worker` остаётся
+прежним. Схему нужно применить заранее командой мигратора из раздела SQL выше.
+Запускайте **один** экземпляр. Worker не читает `.env` и не запускает миграции.
+
+```sh
+# Экспортируйте NOTE_AGENT_DATABASE_URL для целевой PostgreSQL с применённой схемой.
+# Подключите factory своего прикладного обработчика (когда он реализован):
+export NOTE_AGENT_PG_WORKER_HANDLERS=your_package.handlers:build_handlers
+uv run --directory backend --locked python -m app.postgres_worker
+# SIGINT / SIGTERM завершают текущий дочерний процесс и закрывают пул.
+```
+
+В T06 настоящих extract/process/cleanup обработчиков нет. Без factory worker
+ставит занятому job `failed` с `handler_missing`; фиктивного успеха нет.
+`--retry UUID` явно переводит только подходящий `failed` job в `queued` и выходит:
+
+```sh
+uv run --directory backend --locked python -m app.postgres_worker --retry JOB_UUID
+```
+
+Это CLI и метод `JobsRepository.retry`, HTTP-маршрут остаётся в области T03.
+Retry сохраняет attempts; новая попытка увеличивает attempts и получает новый
+UUID token. При активном job того же вида, удалённой заметке для extract/process
+или другом статусе retry возвращает отказ (CLI exit 1). Cleanup, наоборот,
+допускается только для служебной записи с `deleted_at`.
+
+Настройки отдельного worker, в секундах:
+
+| Переменная | По умолчанию |
+|---|---:|
+| `NOTE_AGENT_PG_WORKER_LEASE_SECONDS` | 30 |
+| `NOTE_AGENT_PG_WORKER_HEARTBEAT_SECONDS` | 5 |
+| `NOTE_AGENT_PG_WORKER_TIMEOUT_SECONDS` | 600 |
+| `NOTE_AGENT_PG_WORKER_POLL_SECONDS` | 1 |
+| `NOTE_AGENT_PG_WORKER_STOP_GRACE_SECONDS` | 1 |
+
+Все интервалы конечные и положительные; heartbeat меньше lease. Timeout считает
+время от запуска дочернего процесса, включая его старт. При timeout job получает
+`job_timeout`; при исключении/аварийном выходе — `handler_failed`; при остановке
+активного worker — `worker_stopped`. Текст исключения не сохраняется в БД.
+Ручной retry нужен и после прерванного остановкой задания. После аварии процесса
+оставшийся `processing` восстанавливается в `queued` по истечении lease.
+Проверка восстановления идёт перед каждым занятием. Failed автоматически
+не повторяется; backoff и отдельных очередей нет.
+
+### Интерфейс обработчиков и публикация для T03/T08/T11
+
+Factory без аргументов возвращает словарь
+`{"process": HandlerBinding(compute, writer), ...}` из
+`app.job_runner.worker`. Поддерживаются только extract/process/cleanup.
+`compute(job, context)` — функция на уровне импортируемого модуля либо другой
+spawn-picklable callable. Она выполняется в отдельном процессе без пула/соединений
+родителя, получает `Job(id, note_id, kind, lease_token, attempts)` и вызывает
+`context.publish(payload)` для каждой готовой стадии. После успешного return
+родитель отдельно завершает job с той же проверкой lease/token. Исключение
+останавливает оставшиеся стадии, ранее опубликованные данные сохраняются.
+Модельные и файловые ресурсы обработчик создаёт в дочернем процессе; закрывает
+их при обычном выходе. При принудительном kill исполнение finally не гарантировано.
+Не передавайте открытые ресурсы через factory и не создавайте собственные workers.
+
+`writer(conn, job, payload)` выполняется в родителе через единственную границу
+`JobsRepository.publish`. Это **только короткие параметризованные SQL-записи**,
+без моделей, чтения файлов и сетевых вызовов. Нельзя делать commit/rollback,
+менять строку job или физически удалять notes; cleanup оставляет tombstone.
+Отсутствие writer при попытке publish означает ошибку, без успешного завершения.
+Прямой вызов `repository.publish(job, writer, payload, complete=True)` позволяет
+атомарно записать финальные данные и завершить job в прикладном SQL-коде.
+
+Порядок каждой защищённой операции: `notes FOR UPDATE`, затем `jobs FOR UPDATE`,
+проверка принадлежности/вида, processing/token и `lease_until > clock_timestamp()`.
+Для extract/process заметка не должна быть удалена; cleanup обрабатывает только
+удалённую служебную запись. Lease проверяется после ожидания блокировок и ещё раз
+после SQL callback: если она истекла во время записи, транзакция откатывается.
+Heartbeat имеет те же ограничения и не оживляет истёкшее/отменённое занятие.
+Занятие использует `FOR UPDATE SKIP LOCKED` для заметки и queued job, сохраняя
+тот же порядок блокировок. Сервисы T03 должны блокировать заметку перед jobs
+при отмене, повторе и создании активного job; сама схема этот протокол не навязывает.
+Общие DTO, notes service/repository и схема в T06 не менялись.
+
+### Проверки T06 на PostgreSQL/pgvector
+
+Из корня worktree:
+
+```sh
+# Весь SQL-набор T02 + jobs/worker T06:
+sh scripts/test-postgres.sh -q
+# Только T06, с той же одноразовой БД:
+sh scripts/test-postgres.sh -q -k jobs_worker
+uv run --directory backend --locked ruff check app/jobs_repository.py app/job_runner app/postgres_worker.py tests/postgres/test_jobs_worker.py
+uv run --directory backend --locked ruff format --check app/jobs_repository.py app/job_runner app/postgres_worker.py tests/postgres/test_jobs_worker.py
+```
+
+Скрипт создаёт отдельный контейнер PostgreSQL 17 / pgvector 0.8.1 без volumes,
+со случайным loopback-портом и отдельной схемой на сценарий; удаляет контейнер
+после проверки. Имя тестовой БД `t02_tests` — контракт переиспользуемой фикстуры,
+а не доступ к существующей БД T02/экспериментов. Тесты используют синтетические
+данные, настоящие блокировки/SQL, lease 0.15–2 s и тестовые обработчики без моделей.
+Проверяются токены/отмена/истечение, SKIP LOCKED, heartbeat, ручной retry,
+последовательность, timeout/исключение/аварийный выход, промежуточная публикация,
+SIGTERM в idle и при вычислении, принудительное завершение ребёнка и закрытие пула.
+Интеграция прикладных статусов заметок, настоящих моделей и удаления файлов
+остаётся в следующих назначенных задачах; готовность E2 этим не подтверждается.

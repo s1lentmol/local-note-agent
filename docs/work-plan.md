@@ -74,7 +74,7 @@ Mac одновременно не запускаются без необходи
 | T03 | Общий CRUD на явном SQL | T02 | todo |
 | T04 | Веб: заметки и состояния | T03 | todo |
 | T05 | Telegram: текст и пересылки | T03 | todo |
-| T06 | Один worker и PostgreSQL jobs | T02 | todo |
+| T06 | Один worker и PostgreSQL jobs | T02 | review |
 | T07 | Клиенты генерации, embeddings и ASR | T01, P01, P02, P03 | review |
 | T08 | Индекс в общем обработчике process | T03, T06, T07 | todo |
 | T09 | Гибридный поиск | T08 | todo |
@@ -677,3 +677,87 @@ Remote/cloud endpoints, streaming/strict JSON Schema,
 обогащение и диалог приложения не реализованы и не объявляются готовыми.
 Результат T07 не означает готовность интеграционного E2.
 Следующий шаг: перенос T07 в `mvp` по отдельной команде. До этого — `review`.
+
+### T06 — PostgreSQL jobs и последовательный worker
+
+Статус: `review` — результат подготовлен и проверен, не закоммичен и не интегрирован.
+Область: `backend/app/jobs_repository.py`, `backend/app/job_runner/`,
+`backend/app/postgres_worker.py`, `backend/tests/postgres/test_jobs_worker.py`,
+только свой раздел `docs/development.md` и запись/строка T06 этого плана.
+Работа выполнена в отдельном worktree `/private/tmp/local-note-agent-t06`.
+
+Результат: один последовательный worker для extract/process/cleanup,
+короткое занятие через FOR UPDATE SKIP LOCKED с новым token и attempts,
+heartbeat и восстановление истёкших processing jobs. Failed повторяется только
+явным retry (метод repository и CLI --retry). Вычисление изолировано через spawn,
+имеет конечный timeout; ошибка/аварийный выход/timeout не останавливают следующие
+jobs. SIGINT/SIGTERM прерывают текущее вычисление, join/terminate/kill освобождают
+дочерний процесс; контекст Database закрывает пул. Отсутствие обработчика или
+writer даёт ошибку, без фиктивного успеха.
+
+Публикация SQL — только через repository.publish: блокировка заметки, затем job,
+проверка принадлежности/вида, processing/token, действующей lease и deleted_at.
+Для extract/process требуется живая заметка; cleanup допускается только для
+удалённой служебной записи. Lease проверяется после ожидания блокировок и после
+callback; истечение внутри callback откатывает запись и завершение целиком.
+Heartbeat, complete и fail используют ту же защиту. Промежуточные публикации
+поддерживаются; последующая ошибка обработчика не удаляет уже записанные данные.
+Обработчики в T06 только тестовые; настоящего извлечения, индекса, обогащения,
+удаления файлов и изменения прикладных статусов заметок нет.
+
+Проверки из worktree, Python 3.11.14, PostgreSQL 17 / pgvector 0.8.1:
+
+- `sh scripts/test-postgres.sh -q` — финальный прогон **36 passed, 6.80 s**:
+  13 существующих тестов T02 + 23 сценария T06. Настоящий одноразовый контейнер,
+  случайный loopback-порт, без volumes, отдельная схема на тест; контейнер удалён.
+  Проверены действующая/истёкшая lease, восстановление и прежний token,
+  отмена/удаление/подмена token, heartbeat, SKIP LOCKED заметки и job, истечение
+  при ожидании блокировки и внутри SQL-публикации, rollback ошибки callback,
+  ручной retry и конфликт активного job, все три вида jobs, промежуточная запись,
+  timeout/исключение/аварийный выход и следующие jobs, последовательность,
+  отмена во время вычисления, остановка активного/idle worker, CLI retry,
+  настоящий SIGTERM в idle и во время обработки, включая ребёнка с SIG_IGN,
+  закрытие дочерних процессов и отсутствие соединений CLI в pg_stat_activity.
+  Первый прогон до дополнительного SIGTERM-сценария: 35 passed, 6.19 s.
+- `uv run --directory backend --locked ruff check app/jobs_repository.py app/job_runner app/postgres_worker.py tests/postgres/test_jobs_worker.py --fix`
+  и `uv run --directory backend --locked ruff format app/jobs_repository.py app/job_runner app/postgres_worker.py tests/postgres/test_jobs_worker.py`
+  — PASS; финальное форматирование не меняло файлы.
+- `make lint test` — PASS: Ruff check и format --check всего backend,
+  61 файл; **80 passed, 1.01 s**, одно прежнее StarletteDeprecationWarning
+  об использовании httpx в TestClient. Prototype extra не устанавливался.
+- `git diff --check` — PASS. Sandbox запрещал запись uv cache и создание ветки;
+  необходимые команды повторены с разрешением. Docker/loopback проверки также
+  выполнялись с разрешением; неуспешные sandbox-команды не считаются проверками.
+
+Непроверенные части / блокировка: блокировок T06 нет. Реальные модели, файлы,
+обработчики следующих задач, интеграция с параллельной T03 и HTTP retry не
+проверялись/не реализованы в T06. Падения БД и нагрузка не проверялись; SQL writer
+обязан содержать только короткие SQL-операции, вычисления в нём запрещены.
+Изменения схемы, DTO, зависимостей/lockfile и общей инфраструктуры не понадобились.
+Старые app.worker/SQLite-сервисы и файлы области T03 не менялись.
+При финальной проверке в основном worktree обнаружены параллельные изменения
+AGENTS.md и общих документов; они сохранены без правок. При интеграции переносить
+только раздел T06 development.md и запись/строку T06 work-plan.md, сохраняя
+обновления T03, статуса T07 и правил совместной работы из основной ветки.
+Готовность интеграционного E2 не объявляется.
+Следующий шаг: ревью T06 и интеграция по отдельной команде; коммиты не создавались.
+
+
+Исправление замечания ревью T06 — проверка соединений CLI:
+
+- В `test_entrypoint_retry_and_sigterm_closes_pool` удалён фильтр по тексту
+  последнего запроса. Соединения считаются параметризованным SQL по точному
+  уникальному `application_name`, переданному CLI через conninfo.
+  Перед SIGTERM тест дожидается хотя бы одного соединения worker (timeout 5 s),
+  после успешного завершения процесса — отсутствия всех соединений с этим
+  именем (timeout 5 s). Проверяются оба режима: idle и активный обработчик.
+- `sh scripts/test-postgres.sh -q -k entrypoint_retry_and_sigterm_closes_pool`
+  — **2 passed, 34 deselected, 0.89 s**, настоящий одноразовый PostgreSQL/pgvector
+  без volumes; контейнер удалён скриптом.
+- `uv run --directory backend --locked ruff check tests/postgres/test_jobs_worker.py`
+  — PASS; `uv run --directory backend --locked ruff format --check tests/postgres/test_jobs_worker.py`
+  — PASS, 1 file already formatted. Первый format --check потребовал пустую
+  строку перед вложенной функцией; после её добавления обе проверки прошли.
+- `git diff --check` — PASS. Остальной набор тестов в этом исправлении не
+  повторялся. Изменены только тест и собственная запись T06; соседние изменения
+  сохранены. Статус остаётся `review`, коммитов и интеграции нет.
