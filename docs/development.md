@@ -102,8 +102,8 @@ uv run --directory backend --locked --extra prototype python -m app.prepare_mode
 Сбор и запуск всех backend-тестов, включая прежние тесты прототипа:
 
 ```sh
-uv run --directory backend --locked --extra prototype pytest tests --collect-only
-uv run --directory backend --locked --extra prototype pytest tests
+uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres --collect-only
+uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres
 ```
 
 Модельные сценарии прежних тестов используют тестовые адаптеры/подмены;
@@ -111,3 +111,68 @@ uv run --directory backend --locked --extra prototype pytest tests
 `backend/requirements.lock` — исторический файл: установка, Docker и CI
 используют `uv.lock`. После работы с прототипом `make setup` возвращает
 минимальное окружение без extras.
+
+## SQL-схема, пул и DTO
+
+Целевые модули — `app.postgres` и `app.dto`; старые `app.db` и `app.schemas`
+обслуживают прототип. Импорт модулей не открывает соединения. API не выполняет
+миграции. Перед первым запуском прикладных процессов:
+
+```sh
+docker compose up -d --wait db
+docker compose build api
+make migrate
+make up
+```
+
+Повторный `make migrate` безопасен. Для нативного запуска экспортируйте
+`NOTE_AGENT_DATABASE_URL` с доступным адресом PostgreSQL и выполните:
+
+```sh
+uv run --directory backend --locked python migrate.py
+```
+
+Мигратор использует session advisory lock, SHA-256 исходных байтов файлов и
+отдельную транзакцию на каждую миграцию. Имена: `001_initial.sql`, `002_name.sql`
+без пропусков и повторов. Применённые файлы не редактируются и не удаляются:
+изменение checksum останавливает запуск. При ошибке откатывается вся текущая
+миграция, предыдущие остаются применёнными. SQL-файлы должны содержать только
+транзакционный DDL, без BEGIN/COMMIT и нетранзакционных команд.
+
+Сервисы явно управляют жизненным циклом `Database(url)` (`open`/`close` либо
+контекстный менеджер). `database.transaction()` выдаёт соединение и атомарную
+транзакцию, освобождает его при успехе и исключении. `database.connection()`
+выдаёт autocommit-соединение для отдельных запросов. Используйте параметры SQL,
+не подставляйте значения строковой интерполяцией. Пул регистрирует pgvector
+при подключении; схема должна быть применена до открытия пула. Модельные вызовы
+и извлечение файлов выполняются вне транзакций.
+
+```sh
+make test-db
+```
+
+Команда создаёт PostgreSQL 17 / pgvector 0.8.1 в отдельном контейнере со случайным
+loopback-портом и без volumes, ждёт readiness и удаляет контейнер после тестов.
+Она не читает `NOTE_AGENT_DATABASE_URL` или `.env`. Тесты создают отдельную схему
+на сценарий; отсутствие специальной тестовой БД — ошибка, а не skip.
+Для ручного запуска допустима только выделенная БД с именем `t02_tests`:
+
+```sh
+NOTE_AGENT_TEST_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/t02_tests \
+  uv run --directory backend --locked pytest tests/postgres
+```
+
+`make test` проверяет API/DTO отдельно; `make test-db` обязателен для схемы,
+мигратора и пула. CI выполняет обе команды. Полный локальный набор:
+
+```sh
+make lint
+make test
+make test-db
+uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres
+```
+
+DTO описывают контракты, маршруты появятся в следующих задачах. Идентичность
+embedding-профиля хранится в БД; адаптер и обработчик должны проверять её,
+не усекать векторы и не заменять модель молча. Проверки lease при публикации
+будут реализованы worker/processing задачами.

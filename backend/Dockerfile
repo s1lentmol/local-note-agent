@@ -5,6 +5,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_PYTHON_DOWNLOADS=never
 WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY app ./app
+COPY migrate.py ./
+COPY migrations ./migrations
 RUN uv sync --locked --no-dev --no-editable \
     && useradd --uid 10001 --create-home appuser
 ENV PATH="/app/.venv/bin:$PATH"

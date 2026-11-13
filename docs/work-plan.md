@@ -11,8 +11,8 @@
 реальные OCR/ASR-модели в этом прогоне не проверялись. Прохождение тестов
 прототипа не означает приёмку его переноса на целевую архитектуру.
 P01–P04 приняты и интегрированы (`done`); этап E0 завершён (`done`).
-T01 принята и интегрирована (`done`). Следующие доступные задачи — T02 и T07;
-они пока `todo` и могут выполняться параллельно в непересекающихся областях.
+T01 принята и интегрирована (`done`). T02 прошла ревью и ожидает интеграции
+в состоянии `review`. T07 пока `todo`; области T02 и T07 не пересекаются.
 Владельцы и календарные сроки не назначаются.
 
 Файловое хранилище, extractors, проверку входа, изоляцию процессов и тестовые
@@ -65,7 +65,7 @@ Mac одновременно не запускаются без необходи
 | P03 | Голос OGG/Opus → полный текст | — | done |
 | P04 | Минимальный RAG без цитирования | P01, P02 | done |
 | T01 | Адаптация каркаса, Compose, команды и CI | — | done |
-| T02 | PostgreSQL, SQL-схема, миграции и DTO | T01 | todo |
+| T02 | PostgreSQL, SQL-схема, миграции и DTO | T01 | review |
 | T03 | Общий CRUD на явном SQL | T02 | todo |
 | T04 | Веб: заметки и состояния | T03 | todo |
 | T05 | Telegram: текст и пересылки | T03 | todo |
@@ -299,6 +299,60 @@ GitHub Actions подготовлен; удалённый запуск workflow 
 `extract/process/cleanup`, заметки, файлы, подборки, chunks, диалоги и связи.
 Приёмка: схема применяется к пустой PostgreSQL, ограничения проверены;
 нет ORM-моделей целевой схемы, content_version, expected_version и locators.
+
+T02 прошла независимое ревью и ожидает интеграции.
+Состояние: `review`; блокировок нет. Коммиты не создавались.
+Добавлены `app.postgres` (Psycopg 3 pool, явные транзакции), `app.dto`,
+`migrate.py`, `migrations/001_initial.sql`. Старые SQLite/ORM-модули, `app.main`,
+extractors и `app.api_app` сохранены. Область T07 не изменялась; дополнительных
+зависимостей от T07 в этой сессии не поступало. Общий lockfile содержит
+Psycopg binary/pool и pgvector; совместимость с uv 0.9.9 проверена в Docker.
+
+Схема включает все таблицы архитектуры, состояния ingestion/processing,
+extract/process/cleanup, lease/token, частичную уникальность активных jobs,
+FK принадлежности chunks/enrichments заметке и job, происхождение Telegram и
+уникальные ключи повторной доставки. Единственный embedding-профиль P02
+содержит модель, digest, query instruction, L2, cosine и 1024 измерения;
+столбец `vector(1024)` отклоняет другую размерность. Миграции сериализованы
+session advisory lock, каждая применяется транзакционно; SHA-256 хранится в
+`schema_migrations`, изменение/отсутствие применённого файла вызывает ошибку.
+Пустой URL запрещён. Импорт и API startup не подключаются к БД и не создают схему.
+
+Фактические проверки из worktree (Python 3.11.14, Docker PostgreSQL 17,
+pgvector 0.8.1; тестовые БД отделены от пользовательских и экспериментов):
+
+- `uv lock --project backend`, затем
+  `uv tool run --from uv==0.9.9 uv lock --project backend` — успешно.
+- `uv sync --project backend --locked --python 3.11` — успешно.
+- `make lint` — lint и форматирование всего backend прошли.
+- `make test` — 11 passed (API и DTO).
+- `make test-db` — финальный прогон 13 passed, без skip: пустая схема,
+  повтор, checksum, транзакционный rollback DDL/истории, два конкурентных
+  мигратора, ограничения, Telegram provenance/dedup, 1024/cosine,
+  адаптер pgvector, commit/rollback/savepoint, возврат и закрытие пула.
+  Команда создаёт временный контейнер без volumes и удаляет его.
+- `uv sync --project backend --locked --python 3.11 --extra prototype` и
+  `uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres`
+  — 77 passed (включая 66 прежних тестов); реальные модели не запускались.
+- `env COMPOSE_PROJECT_NAME=t02-schema-check-20261113 NOTE_AGENT_PORT=18092 sh scripts/check-backend.sh`
+  — PASS: сборка минимального образа, два вызова `make migrate` (сначала `[1]`,
+  затем schema up to date), pgvector, HTTP health и persistence после перезапуска.
+  Сервисы остановлены; скрипт сохранил только свой тестовый volume
+  `t02-schema-check-20261113_postgres-data` согласно своему контракту.
+- `git diff --check` — успешно.
+
+Первый прогон БД выявил отклонение libpq conninfo пулом; исправлено и полный
+прогон повторён успешно. Проверки воспроизводятся локально и добавлены в CI;
+сам hosted CI этой сессией не запускался. После этого добавлены проверка
+пустого URL и round trip pgvector; финальный прогон БД указан выше.
+Независимое ревью пройдено: 11 тестов API/DTO, 13 PostgreSQL-тестов,
+Ruff/format, shell syntax и diff — PASS. Полный прогон прототипа и Docker smoke
+ревьюером не повторялись; результаты выше относятся к проверкам автора.
+
+Проверки реальных model endpoints и интеграция с T07 не выполнялись.
+Публикация по актуальной lease/token, CRUD, worker, поиск и маршруты DTO
+остаются задачами следующих этапов: колонки и FK сами не обеспечивают эту
+прикладную проверку. Результат T02 не означает готовности этапа E1 или MVP.
 
 ### T03. CRUD
 

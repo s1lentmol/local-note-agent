@@ -27,8 +27,10 @@ trap cleanup EXIT
 compose config --quiet
 compose build api
 compose up --wait --wait-timeout 120
+make migrate COMPOSE="docker compose --env-file /dev/null -p $COMPOSE_PROJECT_NAME"
+make migrate COMPOSE="docker compose --env-file /dev/null -p $COMPOSE_PROJECT_NAME"
 compose exec -T db sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
-CREATE EXTENSION vector;
+CREATE EXTENSION IF NOT EXISTS vector;
 SELECT extversion FROM pg_extension WHERE extname = 'vector';
 CREATE TABLE backend_smoke (value text NOT NULL);
 INSERT INTO backend_smoke VALUES ('persistent');
