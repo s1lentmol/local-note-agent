@@ -1,0 +1,30 @@
+The system has 51539607552 (3145728 pages with a page size of 16384).
+
+Stats: 
+Pages free: 15056 
+Pages purgeable: 21979 
+Pages purged: 4149094 
+
+Swap I/O:
+Swapins: 0 
+Swapouts: 0 
+
+Page Q counts:
+Pages active: 1103007 
+Pages inactive: 1145819 
+Pages speculative: 3718 
+Pages throttled: 0 
+Pages wired down: 610633 
+
+Compressor Stats:
+Pages used by compressor: 209897 
+Pages decompressed: 347813 
+Pages compressed: 5039159 
+
+File I/O:
+Pageins: 11093827 
+Pageouts: 16368 
+
+System-wide memory free percentage: 73%
+total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)
+11404 4293 43808 ollama

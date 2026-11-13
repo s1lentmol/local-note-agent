@@ -1,0 +1,311 @@
+{
+  "started_at": "2026-11-13T14:54:43.912197+00:00",
+  "base_url": "http://127.0.0.1:11435/v1",
+  "model": "qwen3:8b",
+  "requests": [
+    {
+      "label": "russian",
+      "request": {
+        "model": "qwen3:8b",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Объясни по-русски в двух предложениях, зачем делать резервные копии заметок."
+          }
+        ],
+        "stream": false,
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": 512,
+        "reasoning_effort": "none"
+      },
+      "http_status": 200,
+      "seconds": 1.147,
+      "response": {
+        "id": "chatcmpl-680",
+        "object": "chat.completion",
+        "created": 1794581685,
+        "model": "qwen3:8b",
+        "system_fingerprint": "fp_ollama",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Резервные копии заметок помогают сохранить важную информацию в случае потери данных или сбоя устройства. Они обеспечивают возможность восстановить заметки в любой момент, не потеряв важные данные."
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 43,
+          "prompt_tokens_details": {
+            "cached_tokens": 42
+          },
+          "completion_tokens": 49,
+          "total_tokens": 92
+        }
+      }
+    },
+    {
+      "label": "tools-1",
+      "request": {
+        "model": "qwen3:8b",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Отвечай по-русски. Для фактов из заметок используй search_notes; не придумывай их. Ищи по слову Орбита. После результата инструмента дай краткий ответ без новых вызовов."
+          },
+          {
+            "role": "user",
+            "content": "Когда встреча по проекту Орбита и что нужно подготовить? Проверь заметки."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call_69i4qtp2",
+                "index": 0,
+                "type": "function",
+                "function": {
+                  "name": "search_notes",
+                  "arguments": "{\"query\":\"Орбита\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_69i4qtp2",
+            "content": "[{\"id\": \"demo-1\", \"text\": \"Встреча по проекту Орбита состоится 15 мая в 10:00. Нужно подготовить макет.\"}]"
+          }
+        ],
+        "stream": false,
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": 512,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_notes",
+              "description": "Поиск по двум демонстрационным заметкам по подстроке без учёта регистра.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "query": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "title": "Query",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "title": "SearchArgs",
+                "type": "object"
+              }
+            }
+          }
+        ]
+      },
+      "http_status": 200,
+      "seconds": 1.125,
+      "response": {
+        "id": "chatcmpl-182",
+        "object": "chat.completion",
+        "created": 1794581686,
+        "model": "qwen3:8b",
+        "system_fingerprint": "fp_ollama",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "",
+              "tool_calls": [
+                {
+                  "id": "call_69i4qtp2",
+                  "index": 0,
+                  "type": "function",
+                  "function": {
+                    "name": "search_notes",
+                    "arguments": "{\"query\":\"Орбита\"}"
+                  }
+                }
+              ]
+            },
+            "finish_reason": "tool_calls"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 232,
+          "prompt_tokens_details": {
+            "cached_tokens": 1
+          },
+          "completion_tokens": 23,
+          "total_tokens": 255
+        }
+      }
+    },
+    {
+      "label": "tools-2",
+      "request": {
+        "model": "qwen3:8b",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Отвечай по-русски. Для фактов из заметок используй search_notes; не придумывай их. Ищи по слову Орбита. После результата инструмента дай краткий ответ без новых вызовов."
+          },
+          {
+            "role": "user",
+            "content": "Когда встреча по проекту Орбита и что нужно подготовить? Проверь заметки."
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+              {
+                "id": "call_69i4qtp2",
+                "index": 0,
+                "type": "function",
+                "function": {
+                  "name": "search_notes",
+                  "arguments": "{\"query\":\"Орбита\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_69i4qtp2",
+            "content": "[{\"id\": \"demo-1\", \"text\": \"Встреча по проекту Орбита состоится 15 мая в 10:00. Нужно подготовить макет.\"}]"
+          }
+        ],
+        "stream": false,
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": 512,
+        "reasoning_effort": "none",
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_notes",
+              "description": "Поиск по двум демонстрационным заметкам по подстроке без учёта регистра.",
+              "parameters": {
+                "additionalProperties": false,
+                "properties": {
+                  "query": {
+                    "maxLength": 100,
+                    "minLength": 1,
+                    "pattern": "\\S",
+                    "title": "Query",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "query"
+                ],
+                "title": "SearchArgs",
+                "type": "object"
+              }
+            }
+          }
+        ]
+      },
+      "http_status": 200,
+      "seconds": 1.029,
+      "response": {
+        "id": "chatcmpl-373",
+        "object": "chat.completion",
+        "created": 1794581687,
+        "model": "qwen3:8b",
+        "system_fingerprint": "fp_ollama",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "Встреча по проекту Орбита состоится 15 мая в 10:00. Нужно подготовить макет."
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 313,
+          "prompt_tokens_details": {
+            "cached_tokens": 228
+          },
+          "completion_tokens": 34,
+          "total_tokens": 347
+        }
+      }
+    },
+    {
+      "label": "json-mode",
+      "request": {
+        "model": "qwen3:8b",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Сделай JSON-объект с summary (строка по-русски) и tags (непустой список строк). Текст: Встреча по учебному проекту состоится 15 мая. Нужно подготовить макет."
+          }
+        ],
+        "stream": false,
+        "temperature": 0,
+        "seed": 42,
+        "max_tokens": 512,
+        "reasoning_effort": "none",
+        "response_format": {
+          "type": "json_object"
+        }
+      },
+      "http_status": 200,
+      "seconds": 1.541,
+      "response": {
+        "id": "chatcmpl-270",
+        "object": "chat.completion",
+        "created": 1794581688,
+        "model": "qwen3:8b",
+        "system_fingerprint": "fp_ollama",
+        "choices": [
+          {
+            "index": 0,
+            "message": {
+              "role": "assistant",
+              "content": "{\n  \"summary\": \"Встреча по учебному проекту состоится 15 мая. Нужно подготовить макет.\",\n  \"tags\": [\"учебный проект\", \"встреча\", \"макет\", \"дата\"]\n}"
+            },
+            "finish_reason": "stop"
+          }
+        ],
+        "usage": {
+          "prompt_tokens": 72,
+          "prompt_tokens_details": {
+            "cached_tokens": 1
+          },
+          "completion_tokens": 56,
+          "total_tokens": 128
+        }
+      }
+    }
+  ],
+  "passed": [
+    "russian",
+    "native_tools_full_cycle",
+    "api_json_mode_pydantic"
+  ],
+  "validated_json": {
+    "summary": "Встреча по учебному проекту состоится 15 мая. Нужно подготовить макет.",
+    "tags": [
+      "учебный проект",
+      "встреча",
+      "макет",
+      "дата"
+    ]
+  }
+}

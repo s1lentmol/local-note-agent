@@ -1,0 +1,2 @@
+Ollama 0.40.16 verified: /Users/grgrv/projects/itmo/informational-security/local-note-agent/local/ollama/runtime; setup skipped (no download/extraction).
+Ollama 0.40.16 verified: /Users/grgrv/projects/itmo/informational-security/local-note-agent/local/ollama/runtime; setup skipped (no download/extraction).

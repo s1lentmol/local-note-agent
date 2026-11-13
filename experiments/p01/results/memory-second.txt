@@ -1,0 +1,31 @@
+The system has 51539607552 (3145728 pages with a page size of 16384).
+
+Stats: 
+Pages free: 14877 
+Pages purgeable: 28607 
+Pages purged: 4158094 
+
+Swap I/O:
+Swapins: 0 
+Swapouts: 0 
+
+Page Q counts:
+Pages active: 1071355 
+Pages inactive: 1171038 
+Pages speculative: 2267 
+Pages throttled: 0 
+Pages wired down: 618768 
+
+Compressor Stats:
+Pages used by compressor: 209879 
+Pages decompressed: 347898 
+Pages compressed: 5039159 
+
+File I/O:
+Pageins: 11107043 
+Pageouts: 16476 
+
+System-wide memory free percentage: 73%
+total = 0.00M  used = 0.00M  free = 0.00M  (encrypted)
+12235 4293 34672 ollama
+12360 12235 6531008 llama-server

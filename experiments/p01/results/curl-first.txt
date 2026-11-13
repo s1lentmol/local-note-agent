@@ -1,0 +1,3 @@
+{"id":"chatcmpl-582","object":"chat.completion","created":1794581683,"model":"qwen3:8b","system_fingerprint":"fp_ollama","choices":[{"index":0,"message":{"role":"assistant","content":"Резервные копии заметок помогают сохранить важную информацию в случае потери данных или сбоя устройства. Они обеспечивают возможность восстановить заметки в любой момент, не потеряв важные данные."},"finish_reason":"stop"}],"usage":{"prompt_tokens":43,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens":49,"total_tokens":92}}
+
+HTTP 200; seconds 2.531588
