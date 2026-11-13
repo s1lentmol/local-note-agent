@@ -1,0 +1,98 @@
+{
+  "reviewed_utc": "2026-11-13T15:53:28.623890+00:00",
+  "method": "Agent manual semantic comparison of raw answers, retrieved full texts and predefined expected_facts. No LLM judge, substring grading or human acceptance claimed.",
+  "evidence": "results/eval-real.json",
+  "evidence_sha256": "b00a809267963a8143d459776062f64a6a20777d9325f0a5f0010a2b2394b69e",
+  "queries": [
+    {
+      "id": "r01",
+      "expected_fact_coverage": true,
+      "supported_by_context": true,
+      "answer_language_matches_question": true,
+      "honest_missing_data": null,
+      "notes": "Все три ожидаемых факта есть; посторонних советов нет."
+    },
+    {
+      "id": "r02",
+      "expected_fact_coverage": true,
+      "supported_by_context": true,
+      "answer_language_matches_question": true,
+      "honest_missing_data": null,
+      "notes": "n21 на втором месте, ответ корректно выбрал параметры Psycopg и запрет склейки."
+    },
+    {
+      "id": "r03",
+      "expected_fact_coverage": true,
+      "supported_by_context": true,
+      "answer_language_matches_question": true,
+      "honest_missing_data": null,
+      "notes": "Тормоза, давление шин, запасная камера, 40 км; лес также есть в n07."
+    },
+    {
+      "id": "r04",
+      "expected_fact_coverage": true,
+      "supported_by_context": true,
+      "answer_language_matches_question": true,
+      "honest_missing_data": null,
+      "notes": "Argon2id, случайная соль на аккаунт, запрет обратимого общего ключа; грамматическая ошибка «случайный соль»."
+    },
+    {
+      "id": "r05",
+      "expected_fact_coverage": true,
+      "supported_by_context": true,
+      "answer_language_matches_question": false,
+      "honest_missing_data": null,
+      "notes": "Факты n09 переданы верно, но английский вопрос получил русский ответ вопреки prompt."
+    },
+    {
+      "id": "r06",
+      "expected_fact_coverage": false,
+      "supported_by_context": true,
+      "answer_language_matches_question": true,
+      "honest_missing_data": null,
+      "notes": "Верно: вычисления без открытой транзакции, проверка активности под блокировкой. Опущены короткая транзакция для проверки/записи и явная проверка lease. Неполное покрытие заранее ожидаемых фактов."
+    },
+    {
+      "id": "r07",
+      "expected_fact_coverage": true,
+      "supported_by_context": true,
+      "answer_language_matches_question": true,
+      "honest_missing_data": true,
+      "notes": "Честный отказ назвать пропорцию, несмотря на высокий score n17; граммов в ней нет."
+    },
+    {
+      "id": "r08",
+      "expected_fact_coverage": false,
+      "supported_by_context": true,
+      "answer_language_matches_question": false,
+      "honest_missing_data": true,
+      "notes": "Честный отказ: «Данных недостаточно.». Не выдумано точное время; отказ засчитан. Покрытие ожиданий неполное: не сообщён известный факт про утро четверга. Ответ на русском вместо английского. Оценка полноты исправлена по завершённому ревью."
+    },
+    {
+      "id": "r09",
+      "expected_fact_coverage": true,
+      "supported_by_context": true,
+      "answer_language_matches_question": true,
+      "honest_missing_data": true,
+      "notes": "Честный отказ; вымышленная столица не придумана."
+    },
+    {
+      "id": "r10",
+      "expected_fact_coverage": true,
+      "supported_by_context": true,
+      "answer_language_matches_question": true,
+      "honest_missing_data": true,
+      "notes": "40 км названы, отсутствие длительности явно отмечено; скорость и часы не придуманы."
+    }
+  ],
+  "summary": {
+    "supported_answers": 10,
+    "complete_expected_fact_coverage": 8,
+    "language_matches": 8,
+    "absent_abstentions": 3,
+    "partial_answer_with_missing_data": 1,
+    "positive_expected_notes_all_in_top_3": "7/7 including partial r10",
+    "positive_all_expected_notes_top_1": "5/7; r02 rank 2, r06 requires two notes",
+    "not_a_perfect_pass": true
+  }
+}

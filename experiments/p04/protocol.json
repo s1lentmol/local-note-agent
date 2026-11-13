@@ -1,0 +1,37 @@
+{
+  "prepared_utc": "2026-11-13T15:50:47.853197+00:00",
+  "acceptance": "Manual semantic review against expected_facts for all ten answers; no unsupported additions; explicit missing-data statement for r07-r10. Retrieval checked separately. No tuning after the first run.",
+  "sha256": {
+    "experiments/p04/questions.json": "54054f8dd35d249aae213a8e254d1b543ee6af5a1214d5ff62d6874073f1dc82",
+    "experiments/p04/config.json": "8ae7bf980de487105adb3c7a26ec7320d61c64f206185adabca506a588da2100",
+    "experiments/p04/run.py": "4008334cce2750f9a80d40c603cd7e143b9580315e9072209e483ef0c33d24f7",
+    "experiments/p02/run.py": "2a6f357a3a6bc7175f48c7ad680930825cf316f5e70c8d7cba9ac42a9abf6ea5",
+    "experiments/p02/corpus.json": "085a06ec55a2458b14853e58cb35d1968c41051149a2929598db81ef39532067",
+    "experiments/p02/model-manifest.json": "546bb83c2154c9c3512e7fe448b25aa63f0cd19a9d19f996e328d2a65cc0815d",
+    "experiments/p01/results/ps-first.json": "70b3761db3d1b9d7533ae4dbd99302fa11eea70c60c8a6cc8334702482705924"
+  },
+  "existing_evidence_sha256": {
+    "experiments/p01/results/curl-first.txt": "a468f53d731f8d01fad5c248571a1e0fd76e8cea78737a37f40c9d5f0813de3e",
+    "experiments/p01/results/curl-second.txt": "61e028797b7a672498fd610520a1c5bb27170fff3381d3e5413b23973f5abb88",
+    "experiments/p01/results/first.json": "4296f5c8e2db499408252fe88ade4b37d1255526f32d3d4279c1a78c81d9bff9",
+    "experiments/p01/results/memory-first.txt": "669c3f676c8dd0d6e0021bdfc29dc4423378cd10283cf65507c374fea20abcff",
+    "experiments/p01/results/memory-second.txt": "9a44e4a11c5a7df30bce5837d2b2b1ca43f74abbb26fe6e0ff281350aff37c41",
+    "experiments/p01/results/model-metadata.json": "e8a552c14272b6e2bd89335dfffde9165ada343188ef017e25a55cc75288c688",
+    "experiments/p01/results/post-relocation/curl-first.txt": "a95c7026c7b2f3dc3a55b31f51e6c33689ab1734525aa5b2ca3fc69018242aec",
+    "experiments/p01/results/post-relocation/curl-second.txt": "256e40342696a453545b2b92d3b4fd741d42d901236a1872ddafb90ea8ee7f4a",
+    "experiments/p01/results/post-relocation/first.json": "b7c14982e27a4e0dd0b842f69e13c9e38367e7956b84da254748e770c08165a8",
+    "experiments/p01/results/post-relocation/historical-evidence.sha256": "47b821069dda02aa31d548a909ae63c9790da150191bdf80d17e85708b2d9d1c",
+    "experiments/p01/results/post-relocation/ps-first.json": "50176a80155f6445d35d1574946abf4c01101c8d8c3c8818d9141eb7082694c9",
+    "experiments/p01/results/post-relocation/ps-second.json": "794215590dbcb5ec417f2b5be049c5f08e7a1c5c4d73b1db0f91da92295448a3",
+    "experiments/p01/results/post-relocation/second.json": "76f204b3b1dce96b880f9c37de2a2d5fd1ebf1b1d1754efd6df42a6ed5da75a6",
+    "experiments/p01/results/post-relocation/setup.txt": "8fe5f41324ca35681e0adf55fe05f7db113dda772c21559afd396b6b6a97887b",
+    "experiments/p01/results/post-relocation/version.json": "d08fbf1a7a1f1d21f83de452346b795b32ecd448b8ad5479144768bcedd23665",
+    "experiments/p01/results/ps-first.json": "70b3761db3d1b9d7533ae4dbd99302fa11eea70c60c8a6cc8334702482705924",
+    "experiments/p01/results/ps-second.json": "3a8f6b9b4d9e3b7b9d88a609ea1d9bcb3819579989201ccdc9770db2baaff71b",
+    "experiments/p01/results/second.json": "2da9873b1b5b93f966ac87685c39a4052a61fa419dba53146011bd4eb76c9d65",
+    "experiments/p02/results/after-db-restart.json": "1e7c00b2db6b1ec582229fa325a7cd62afc8d3fefc77f214112080d0c0aa1716",
+    "experiments/p02/results/eval-first.json": "2904689940514aa6e7691cdde6d9283678f6834bc3b46a905a0d215bd15345b1",
+    "experiments/p02/results/pinned-recheck.json": "1915256922a9f5697a5b68de25733734805173f538944bc56bffe71f12e18994",
+    "experiments/p02/results/sandbox-denied.json": "f3584e329acbef14dc7122f8afbcd2a545cf437a8b24876c8854cf14a88abef3"
+  }
+}

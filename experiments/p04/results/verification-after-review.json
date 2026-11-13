@@ -1,0 +1,22 @@
+{
+  "checked_utc": "2026-11-13T15:57:48.728424+00:00",
+  "checks": {
+    "sha256": {
+      "result": "PASS",
+      "files": 7
+    },
+    "existing_evidence_sha256": {
+      "result": "PASS",
+      "files": 22
+    },
+    "raw_chain_and_database_snapshot": "PASS",
+    "manual_review_link": "PASS (integrity only, not semantic regrading)",
+    "existing_output_rejected": {
+      "result": "PASS",
+      "exit_code": 1,
+      "exception": "FileExistsError",
+      "sha256_unchanged": true
+    },
+    "git diff --check": "PASS"
+  }
+}
