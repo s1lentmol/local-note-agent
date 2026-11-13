@@ -1,0 +1,98 @@
+{
+  "smoke_only": false,
+  "model_sha256": "394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2",
+  "runs": [
+    {
+      "audio": {
+        "format": "ogg/opus",
+        "codec": "opus",
+        "duration_seconds": 188.171125
+      },
+      "metrics": {
+        "asr_seconds": 5.4092335,
+        "maximum_rss_bytes": 959922176,
+        "metal_device_reported": true,
+        "decode_seconds": 0.257507209,
+        "total_seconds": 5.6674240000000005,
+        "asr_rtf": 0.02874635255541997
+      },
+      "quality": {
+        "reference_words": 234,
+        "hypothesis_words": 213,
+        "word_edits": 102,
+        "wer": 0.4358974358974359
+      },
+      "literary_quality": {
+        "reference_words": 234,
+        "hypothesis_words": 175,
+        "word_edits": 69,
+        "wer": 0.2948717948717949
+      }
+    },
+    {
+      "audio": {
+        "format": "wav",
+        "codec": "pcm_s16le",
+        "duration_seconds": 188.171125
+      },
+      "metrics": {
+        "asr_seconds": 5.488946708,
+        "maximum_rss_bytes": 958808064,
+        "metal_device_reported": true,
+        "decode_seconds": 0.056209374999999895,
+        "total_seconds": 5.545636375000001,
+        "asr_rtf": 0.02916997338459873
+      },
+      "quality": {
+        "reference_words": 234,
+        "hypothesis_words": 229,
+        "word_edits": 92,
+        "wer": 0.39316239316239315
+      },
+      "literary_quality": {
+        "reference_words": 234,
+        "hypothesis_words": 191,
+        "word_edits": 54,
+        "wer": 0.23076923076923078
+      }
+    },
+    {
+      "audio": {
+        "format": "mp3",
+        "codec": "mp3",
+        "duration_seconds": 188.171125
+      },
+      "metrics": {
+        "asr_seconds": 5.613190417,
+        "maximum_rss_bytes": 954695680,
+        "metal_device_reported": true,
+        "decode_seconds": 0.0854392500000003,
+        "total_seconds": 5.699065334,
+        "asr_rtf": 0.02983024317360063
+      },
+      "quality": {
+        "reference_words": 234,
+        "hypothesis_words": 224,
+        "word_edits": 100,
+        "wer": 0.42735042735042733
+      },
+      "literary_quality": {
+        "reference_words": 234,
+        "hypothesis_words": 186,
+        "word_edits": 66,
+        "wer": 0.28205128205128205
+      }
+    }
+  ],
+  "reference": {
+    "source": "https://ilibrary.ru/text/438/p.1/index.html",
+    "kind": "published literary text; not a verbatim verified audio transcript",
+    "sha256": "a9325d3b22eae9796987db93a52e06c5083d0d85e6db930339cdc1ddaf73d3f9",
+    "start": "Теперь слушайте",
+    "end": "вернулся домой."
+  },
+  "parameters": {
+    "no_timestamps": true,
+    "note": "diagnostic baseline; long-form omissions; superseded"
+  }
+}

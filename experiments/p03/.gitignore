@@ -1,0 +1,9 @@
+local/
+__pycache__/
+*.ogg
+*.opus
+*.wav
+*.mp3
+*.aiff
+*.bin
+*.log
