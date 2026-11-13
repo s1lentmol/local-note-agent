@@ -27,7 +27,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         try:
             if database is not None:
                 database.open()
-                app.state.notes = NotesService(database)
+                app.state.notes = NotesService(
+                    database, processing_enabled=settings.processing_enabled
+                )
             yield
         finally:
             if database is not None:
@@ -41,7 +43,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.exception_handler(NoteError)
     async def note_error(request: Request, exc: NoteError):
-        status = {"note_not_found": 404, "note_not_ready": 409, "database_unavailable": 503}
+        status = {
+            "note_not_found": 404,
+            "note_not_ready": 409,
+            "retry_not_available": 409,
+            "database_unavailable": 503,
+        }
         return error(status.get(exc.code, 500), exc.code, exc.message)
 
     @app.exception_handler(RequestValidationError)

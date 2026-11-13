@@ -19,6 +19,7 @@ services:
     init: true
     environment:
       NOTE_AGENT_DATABASE_URL: ${NOTE_AGENT_DATABASE_URL:?Set NOTE_AGENT_DATABASE_URL in .env or environment}
+      NOTE_AGENT_PROCESSING_ENABLED: ${NOTE_AGENT_PROCESSING_ENABLED:-false}
       NOTE_AGENT_CORS_ORIGINS: ${NOTE_AGENT_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
     ports:
       - "127.0.0.1:${NOTE_AGENT_PORT:-8000}:8000"

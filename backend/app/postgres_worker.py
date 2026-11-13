@@ -15,8 +15,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--retry", type=str, help="Explicitly retry a failed job UUID, then exit")
     args = parser.parse_args()
-    # The factory is optional: absent handlers fail explicitly, never report success.
-    factory_path = os.environ.get("NOTE_AGENT_PG_WORKER_HANDLERS")
+    # Process is the production default; extract/cleanup remain unimplemented.
+    factory_path = os.environ.get("NOTE_AGENT_PG_WORKER_HANDLERS", "app.indexing:handlers")
     handlers = {}
     if factory_path:
         module, name = factory_path.split(":", 1)

@@ -5,9 +5,11 @@ from uuid import UUID
 from psycopg import Connection
 
 from app.dto import NoteDetail, NoteListItem, NoteListQuery, NotePatch, Page, TextNoteCreate
+from app.jobs_repository import JobsRepository
 from app.postgres import Database
 from app.repositories.notes import NotesRepository
 from app.repositories.sources import SourcesRepository
+from app.services.processing import enqueue_process
 
 
 class NoteError(Exception):
@@ -17,8 +19,9 @@ class NoteError(Exception):
 
 
 class NotesService:
-    def __init__(self, database: Database):
+    def __init__(self, database: Database, *, processing_enabled: bool = False):
         self.database = database
+        self.processing_enabled = processing_enabled
 
     def _detail(self, conn: Connection, note_id: UUID) -> NoteDetail:
         row = NotesRepository(conn).detail(note_id)
@@ -33,6 +36,8 @@ class NotesService:
         with self.database.transaction() as conn:
             note_id = NotesRepository(conn).create(title, request.text, request.title is not None)
             SourcesRepository(conn).create_text(note_id, request.text)
+            if self.processing_enabled:
+                enqueue_process(conn, note_id)
             return self._detail(conn, note_id)
 
     def get(self, note_id: UUID) -> NoteDetail:
@@ -74,3 +79,21 @@ class NotesService:
             repo.cancel_jobs(note_id)
             repo.delete(note_id)
             repo.queue_cleanup(note_id)
+
+    def retry(self, note_id: UUID, stage: str) -> NoteDetail:
+        with self.database.transaction() as conn:
+            note = NotesRepository(conn).lock(note_id)
+            if note is None or note["deleted_at"] is not None:
+                raise NoteError("note_not_found", "Заметка не найдена.")
+            if stage != "process":
+                raise NoteError("retry_not_available", "Обработчик извлечения ещё не подключён.")
+            if note["ingestion_status"] != "ready" or note["processing_status"] != "failed":
+                raise NoteError("retry_not_available", "Повтор обработки сейчас недоступен.")
+            job = conn.execute(
+                """SELECT id FROM jobs WHERE note_id=%s AND kind='process' AND status='failed'
+                   ORDER BY created_at DESC, id DESC LIMIT 1""",
+                (note_id,),
+            ).fetchone()
+            if job is None or not JobsRepository(self.database).retry(job["id"], conn=conn):
+                raise NoteError("retry_not_available", "Повтор обработки сейчас недоступен.")
+            return self._detail(conn, note_id)

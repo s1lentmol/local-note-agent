@@ -409,6 +409,8 @@ def test_entrypoint_retry_and_sigterm_closes_pool(repository, database_url, acti
         NOTE_AGENT_DATABASE_URL=make_conninfo(database_url, application_name=application_name),
         NOTE_AGENT_PG_WORKER_STOP_GRACE_SECONDS="0.1",
     )
+    if not active:
+        env["NOTE_AGENT_PG_WORKER_HANDLERS"] = ""
     if active:
         env["NOTE_AGENT_PG_WORKER_HANDLERS"] = "test_jobs_worker:cli_handlers"
         env["PYTHONPATH"] = os.path.abspath("tests/postgres")
@@ -427,7 +429,7 @@ def test_entrypoint_retry_and_sigterm_closes_pool(repository, database_url, acti
                 (application_name,),
             ).fetchone()["n"]
 
-    # Default entrypoint must fail absent handlers, then wait idle until SIGTERM.
+    # Explicit empty factory must fail absent handlers, then wait idle until SIGTERM.
     process = subprocess.Popen([sys.executable, "-m", "app.postgres_worker"], env=env)
     try:
         if active:

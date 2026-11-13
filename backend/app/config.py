@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class Settings(BaseModel):
+    processing_enabled: bool = False
     database_url: str = Field(default="", repr=False)
     data_dir: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[1] / "data")
     image_max_bytes: int = Field(default=10 * 1024 * 1024, gt=0)

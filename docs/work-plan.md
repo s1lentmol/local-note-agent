@@ -76,7 +76,7 @@ Mac одновременно не запускаются без необходи
 | T05 | Telegram: текст и пересылки | T03 | todo |
 | T06 | Один worker и PostgreSQL jobs | T02 | done |
 | T07 | Клиенты генерации, embeddings и ASR | T01, P01, P02, P03 | done |
-| T08 | Индекс в общем обработчике process | T03, T06, T07 | todo |
+| T08 | Индекс в общем обработчике process | T03, T06, T07 | review |
 | T09 | Гибридный поиск | T08 | todo |
 | T10 | Обычные RAG-ответы и диалог | T04, T05, T09, P04 | todo |
 | T11 | Оригиналы и TXT/Markdown | T03, T06 | todo |
@@ -470,10 +470,103 @@ ASR возвращает `text`/`language`. Приёмка: реальные п�
 
 ### T08. Индекс
 
-Реализовать `process`: текст → внутренние chunks → embeddings → замена индекса.
-Публикация в PostgreSQL проверяет активный job/token под блокировкой заметки.
-Приёмка: повтор не дублирует chunks; отменённый job не записывает старый индекс;
-текст находится векторным запросом. Отдельный index job не создаётся.
+Статус: `review`. Реализовано в ветке `task/t08`, отдельный worktree
+`/private/tmp/local-note-agent-t08` от актуальной основной ветки с принятыми
+T03/T06/T07. Коммитов, merge/rebase и изменений других worktree не выполнялось.
+Блокировок реализации нет; приёмка и интеграция ещё не выполнены.
+
+Результат:
+
+- `app/indexing.py`: production process handler, чтение текущих заголовка/текста,
+  chunks около 600 приближённых токенов с overlap 80, пакетные embeddings T07.
+  Размер, overlap и batch настраиваются. Identity, размерность, число векторов,
+  конечность и L2 проверяются. HTTP выполняется после закрытия соединения чтения.
+- `repositories/index.py`: замена chunks в одной транзакции через существующий
+  `JobsRepository.publish`. Порядок блокировок заметка → job → профиль;
+  полный профиль сверяется повторно под FOR UPDATE перед DELETE/INSERT.
+  Несовместимость и ошибка SQL откатывают замену; повтор не накапливает chunks.
+- `app.postgres_worker` по умолчанию подключает process через HandlerBinding;
+  прежний override factory сохранён. Нового worker/очереди/протокола нет.
+  T06 синхронизирует processing_status/error на claim/complete/fail/retry/recovery;
+  ошибки остаются безопасными `handler_failed`, без provider body и текста.
+- Общий NotesService при включённом `NOTE_AGENT_PROCESSING_ENABLED` создаёт
+  текст, источник и process одной транзакцией, без модельных вызовов.
+  По умолчанию CRUD независим, processing_status=not_requested.
+  Compose передаёт флаг API; worker запускается отдельно нативно.
+- `python -m app.services.processing` ставит process существующим ready заметкам,
+  блокирует и перепроверяет каждую запись, пропускает deleted/не-ready,
+  активные process и failed заметки. Последние требуют явного retry.
+  После успешного завершения повтор команды означает новое переиндексирование.
+- `POST /api/v1/notes/{id}/retry` с stage=process использует retry T06 в общей
+  транзакции, возвращает 202 Accepted и queued карточку; 409 при недоступном повторе,
+  404 для удалённой заметки. Stage=extract пока 409: обработчика T11 нет.
+  PATCH/DELETE и инвалидация T03 сохранены, новый lifecycle не добавлялся.
+
+Проверки исполнителя из worktree, Python 3.11.14:
+
+- `uv sync --project backend --locked --python 3.11` — PASS, зависимости и lockfile
+  не менялись. Sandbox запретил uv cache; команда повторена с разрешением.
+- `make lint test` — PASS: Ruff check/format всего backend (73 файла),
+  **95 passed, 1 warning, 1.00 s**, включая 13 новых unit-сценариев T08.
+- `sh scripts/test-postgres.sh -q` — финальный **72 passed, 1 warning, 11.11 s**:
+  56 существующих SQL-тестов и 16 сценариев T08. Настоящий одноразовый
+  PostgreSQL 17 / pgvector 0.8.1, случайный loopback-порт, без volumes,
+  отдельная схема на тест; контейнер удалён. Проверены создание → worker →
+  chunks → cosine SQL с ожидаемой заметкой, повтор без дубликатов, rollback,
+  несовместимый профиль, ошибка модели, API retry, одновременная постановка,
+  отмена PATCH/DELETE, смена token, истечение lease и ожидание lock профиля.
+  Production CLI проверен через default factory и настоящий HTTP-клиент T07
+  против детерминированного локального endpoint. Все тесты входят в make/CI.
+- Первый SQL-прогон до CLI-сценария: 71 passed. При добавлении CLI-теста
+  промежуточный прогон дал 1 failed / 71 passed из-за недостающих импортов;
+  исправлено, зависший собственный pytest остановлен, одноразовый контейнер
+  очищен скриптом. Финальный успешный прогон указан выше.
+- Отдельно `EMBEDDING_BASE_URL=http://127.0.0.1:11437 uv run --directory backend
+  --locked python -m app.model_clients.smoke embeddings
+  --output /private/tmp/t08-embeddings.json` — PASS на настоящем Ollama/P02:
+  qwen3-embedding:0.6b, digest из профиля, 1024, документы 0.829 s,
+  запрос 0.023 s; cosine 0.658739 ожидаемого текста против 0.159259 другого.
+  Runtime и веса использованы из local/ollama основного worktree без загрузки
+  и копирования; SHA-256 бинарника совпал с evidence T07
+  (`5c3cf935be8d896433a5caefefc8857bc2bb9e32c77c35e7c3d38b7c5919822f`).
+  Запускался только собственный Ollama на 11437, после smoke остановлен;
+  генерация и ASR не запускались. Это клиентский host smoke, отдельно от SQL-тестов.
+- `COMPOSE_PROJECT_NAME=t08-first-run-20261114 NOTE_AGENT_PORT=18088
+  NOTE_AGENT_PROCESSING_ENABLED=false sh scripts/check-backend.sh` — PASS:
+  новый пустой volume, сборка образа, готовность БД → явные миграции (включая
+  повтор) → API, pgvector 0.8.1, health/CRUD, сохранность полной заметки и SQL
+  после рестарта. Сервисы/сеть остановлены скриптом; тестовый volume
+  `t08-first-run-20261114_postgres-data` сохранён по контракту скрипта.
+- `git diff --check`, `git diff --cached --check` — PASS. Предупреждение тестов —
+  прежний StarletteDeprecationWarning об httpx. Для Git worktree, uv cache,
+  Docker, loopback и модельного smoke использованы разрешённые запуски.
+
+Ограничения: worker не включён в Compose, контейнер → модельный сервис
+не проверен. Реальный smoke не является полным SQL-сценарием с реальной моделью;
+сквозные постоянные тесты используют тестовый Embedder/endpoint.
+Нагрузки, сбои БД и remote/cloud endpoint не проверялись. Prototype extra
+не устанавливался, frontend и прототип не менялись. Summary/теги, граф, поиск API,
+RAG, extract/файлы/ASR и lifecycle T14 не реализованы. T13 продолжит ту же
+функцию process после публикации индекса; отдельного index/enrich job нет.
+Инструкции запуска — в собственном разделе T08 development.md; готовность E2/MVP
+не объявляется. Следующий шаг: статическое ревью и интеграция по отдельной команде.
+
+Исправление замечания статического ревью T08 — HTTP-код retry:
+
+- В маршруте явно задан `status_code=202`. В существующем PostgreSQL-тесте
+  `test_model_error_safe_states_and_retry_api` проверяются 202, queued и совпадение
+  полной карточки ответа с последующим GET (сохранённое состояние).
+  Существующие проверки отказов 404/409/422 сохранены и прошли.
+  В собственном разделе development.md уточнён `202 Accepted`.
+- `sh scripts/test-postgres.sh -q -k test_model_error_safe_states_and_retry_api`
+  — **1 passed, 71 deselected, 1 warning, 0.49 s**, одноразовый PostgreSQL/pgvector,
+  контейнер удалён скриптом. Предупреждение — прежнее Starlette об httpx.
+- `backend/.venv/bin/ruff check backend/app/api/note_crud.py backend/tests/postgres/test_process_index.py`
+  — PASS; `backend/.venv/bin/ruff format --check backend/app/api/note_crud.py backend/tests/postgres/test_process_index.py`
+  — PASS, 2 files already formatted.
+- `git diff --check`, `git diff --cached --check` — PASS.
+  Полные тесты, модельные и Compose smoke в этом исправлении не повторялись.
+  Статус остаётся `review`; коммитов, merge/rebase и правок других worktree нет.
 
 ### T09. Поиск
 

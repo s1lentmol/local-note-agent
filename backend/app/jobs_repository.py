@@ -83,6 +83,12 @@ class JobsRepository:
                    lease_token=%s, lease_until=clock_timestamp()+%s WHERE id=%s""",
                 (token, timedelta(seconds=lease_seconds), job["id"]),
             )
+            if job["kind"] == "process":
+                conn.execute(
+                    """UPDATE notes SET processing_status='processing', processing_error=NULL,
+                       updated_at=clock_timestamp() WHERE id=%s""",
+                    (job["note_id"],),
+                )
             return Job(job["id"], job["note_id"], job["kind"], token, job["attempts"] + 1)
 
     @contextmanager
@@ -126,6 +132,17 @@ class JobsRepository:
             (status, Jsonb(error) if error else None, job.id),
         )
 
+        if job.kind == "process":
+            conn.execute(
+                """UPDATE notes SET processing_status=%s, processing_error=%s,
+                   updated_at=clock_timestamp() WHERE id=%s""",
+                (
+                    "ready" if status == "done" else "failed",
+                    Jsonb(error) if error else None,
+                    job.note_id,
+                ),
+            )
+
     def complete(self, job: Job):
         with self._active(job) as conn:
             self._finish(conn, job, "done", None)
@@ -168,28 +185,44 @@ class JobsRepository:
                        ELSE clock_timestamp() END WHERE id=%s""",
                     ("queued" if eligible else "cancelled", eligible, row["id"]),
                 )
+                if eligible and row["kind"] == "process":
+                    conn.execute(
+                        "UPDATE notes SET processing_status='queued' WHERE id=%s",
+                        (row["note_id"],),
+                    )
                 count += 1
         return count
 
-    def retry(self, job_id: UUID) -> bool:
+    def retry(self, job_id: UUID, *, conn: Connection | None = None) -> bool:
         """Explicit failed -> queued transition; active sibling means no retry."""
-        with self.database.transaction() as conn:
-            candidate = conn.execute("SELECT note_id FROM jobs WHERE id=%s", (job_id,)).fetchone()
-            if candidate is None:
-                return False
-            note = self._note(conn, candidate["note_id"])
-            row = conn.execute("SELECT * FROM jobs WHERE id=%s FOR UPDATE", (job_id,)).fetchone()
-            if row is None or row["status"] != "failed" or not self._eligible(note, row["kind"]):
-                return False
-            if conn.execute(
-                """SELECT 1 FROM jobs WHERE note_id=%s AND kind=%s
-                   AND status IN ('queued','processing')""",
-                (row["note_id"], row["kind"]),
-            ).fetchone():
-                return False
+        if conn is None:
+            with self.database.transaction() as transaction:
+                return self.retry(job_id, conn=transaction)
+        return self._retry(conn, job_id)
+
+    def _retry(self, conn, job_id):
+        candidate = conn.execute("SELECT note_id FROM jobs WHERE id=%s", (job_id,)).fetchone()
+        if candidate is None:
+            return False
+        note = self._note(conn, candidate["note_id"])
+        row = conn.execute("SELECT * FROM jobs WHERE id=%s FOR UPDATE", (job_id,)).fetchone()
+        if row is None or row["status"] != "failed" or not self._eligible(note, row["kind"]):
+            return False
+        if conn.execute(
+            """SELECT 1 FROM jobs WHERE note_id=%s AND kind=%s
+               AND status IN ('queued','processing')""",
+            (row["note_id"], row["kind"]),
+        ).fetchone():
+            return False
+        conn.execute(
+            """UPDATE jobs SET status='queued', error=NULL, started_at=NULL,
+               finished_at=NULL, lease_until=NULL, lease_token=NULL WHERE id=%s""",
+            (job_id,),
+        )
+        if row["kind"] == "process":
             conn.execute(
-                """UPDATE jobs SET status='queued', error=NULL, started_at=NULL,
-                   finished_at=NULL, lease_until=NULL, lease_token=NULL WHERE id=%s""",
-                (job_id,),
+                """UPDATE notes SET processing_status='queued', processing_error=NULL,
+                   updated_at=clock_timestamp() WHERE id=%s""",
+                (row["note_id"],),
             )
-            return True
+        return True

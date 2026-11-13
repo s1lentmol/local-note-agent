@@ -12,6 +12,7 @@ from app.dto import (
     NoteListQuery,
     NotePatch,
     Page,
+    RetryRequest,
     TextNoteCreate,
 )
 from app.services.notes import NoteError, NotesService
@@ -57,3 +58,8 @@ def patch_note(note_id: UUID, body: NotePatch, service: Service):
 def delete_note(note_id: UUID, service: Service):
     service.delete(note_id)
     return Response(status_code=204)
+
+
+@router.post("/{note_id}/retry", status_code=202, response_model=NoteDetail)
+def retry_note(note_id: UUID, body: RetryRequest, service: Service):
+    return service.retry(note_id, body.stage)

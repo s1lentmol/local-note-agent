@@ -511,3 +511,99 @@ uv run --directory backend --locked ruff format --check app/jobs_repository.py a
 SIGTERM в idle и при вычислении, принудительное завершение ребёнка и закрытие пула.
 Интеграция прикладных статусов заметок, настоящих моделей и удаления файлов
 остаётся в следующих назначенных задачах; готовность E2 этим не подтверждается.
+
+## T08: индексирование через process
+
+Создание текста в общем `NotesService` ставит process в той же транзакции,
+если `NOTE_AGENT_PROCESSING_ENABLED=true`. По умолчанию флаг выключен:
+CRUD сохраняет `processing_status=not_requested`, не обращается к моделям
+и не создаёт process. Compose передаёт флаг API из `.env`.
+Флаг управляет автоматической постановкой новых текстов; уже поставленные jobs,
+явный retry и команда обработки существующих заметок выполняются независимо от него.
+
+Целевой PostgreSQL worker запускается отдельным нативным процессом. Сначала
+подготовьте доступную с хоста PostgreSQL/pgvector и примените миграции; URL
+Compose `@db:5432` с хоста недоступен (порт БД по умолчанию не опубликован).
+Порядок первого запуска остаётся: готовность БД → явные миграции → API/worker.
+Worker не включён в Compose; контейнерный доступ к модельному сервису в T08
+не проверяется и не подразумевается нативным smoke.
+
+```sh
+# Для всех нативных процессов используйте один URL подготовленной БД.
+export NOTE_AGENT_DATABASE_URL=postgresql://user:password@127.0.0.1:5432/note_agent
+uv run --directory backend --locked python migrate.py
+# Ollama запускается отдельно с уже подготовленными весами P02 (см. раздел моделей).
+export EMBEDDING_BASE_URL=http://127.0.0.1:11435
+export NOTE_AGENT_PROCESSING_ENABLED=true
+uv run --directory backend --locked python -m app.postgres_worker
+# В другом терминале, с теми же экспортированными настройками:
+uv run --directory backend --locked uvicorn app.api_app:app --host 127.0.0.1 --port 8000
+# Явная постановка существующих ingestion_status=ready заметок:
+uv run --directory backend --locked python -m app.services.processing
+```
+
+Production factory по умолчанию — `app.indexing:handlers`, регистрирует только
+process через `HandlerBinding`. Старый `NOTE_AGENT_PG_WORKER_HANDLERS` остаётся
+явным override для тестов/интеграции; пустое значение отключает все обработчики.
+Extract будет подключён в T11, cleanup — в T14. Их задания пока завершаются
+безопасной ошибкой `handler_missing`, а не фиктивным успехом.
+
+`NOTE_AGENT_CHUNK_SIZE=600`, `NOTE_AGENT_CHUNK_OVERLAP=80` задают приближённые
+токены: группа до четырёх букв/цифр либо один знак пунктуации. Это оценка,
+а не tokenizer модели. Исходный текст внутри границ сохраняется; короткий текст
+даёт один chunk. `NOTE_AGENT_CHUNK_BATCH_SIZE=16` ограничивает пакет embeddings.
+Вход документа модели — заголовок, пустая строка, текст chunk; query instruction
+к документам не добавляется. Верхний контекст и `truncate=false` контролирует
+адаптер T07; превышение контекста даёт failed, текст заметки сохраняется.
+Все `EMBEDDING_*` настройки остаются настройками T07.
+
+Профиль пространства из настроек (модель, digest, 1024, cosine, l2, полный
+query prefix) сверяется с `embedding_profiles` перед вычислением и повторно
+под `FOR UPDATE` при публикации. Адаптер проверяет реальный digest endpoint;
+обработчик проверяет identity, размерность, количество, конечность и L2 векторов.
+Вычисления выполняются в дочернем процессе после закрытия соединения чтения.
+Индекс заменяется атомарно только через `JobsRepository.publish` с блокировками
+заметка → job → профиль. Истёкшая lease откатывает и замену chunks, и завершение.
+Промежуточный индекс сохраняется при последующей ошибке; T13 продолжит ту же
+функцию после публикации, без второй очереди и index/enrich jobs.
+
+T06 синхронизирует статусы process с заметкой: claim → processing,
+complete → ready, fail → failed с безопасной ошибкой, retry/recovery → queued.
+Ошибки модели/профиля отображаются как безопасный `handler_failed` без исходного
+exception, текста заметки или ответа провайдера. Summary/теги ещё не вычисляются;
+ready сейчас означает завершение подключённой части process (индекса).
+
+Команда backlog блокирует каждую заметку перед jobs, повторно проверяет ready
+и отсутствие удаления, пропускает активный process и failed заметки.
+Повтор команды во время обработки не создаёт дубликатов. После завершения
+она может явно поставить новое полное переиндексирование. Отдельный failed job
+повторяется через существующий механизм T06, с тем же ID и новым token при claim:
+
+```sh
+curl --fail -X POST http://127.0.0.1:8000/api/v1/notes/NOTE_UUID/retry \
+  -H 'Content-Type: application/json' -d '{"stage":"process"}'
+# Для администратора остаётся CLI T06:
+uv run --directory backend --locked python -m app.postgres_worker --retry JOB_UUID
+```
+
+API возвращает `202 Accepted` и сохранённую полную карточку с queued;
+недоступный повтор — 409, удалённая
+заметка — 404, неверное тело — 422. `stage=extract` пока возвращает 409.
+HTTP retry использует `JobsRepository.retry` внутри общей транзакции с блокировкой
+заметки. PATCH/DELETE сохраняют инвалидацию T03; автоматический новый process
+после PATCH и полный lifecycle правок/cleanup остаются T14.
+
+Постоянные проверки (входят в существующие Makefile/CI команды):
+
+```sh
+make lint test
+sh scripts/test-postgres.sh -q
+# Только T08 SQL-сценарии:
+sh scripts/test-postgres.sh -q -k process_index
+```
+
+Тестовые embeddings детерминированы, настоящая SQL-БД создаётся скриптом без
+volumes. CLI-сценарий отдельно использует настоящий T07 HTTP-клиент против
+локального тестового endpoint. Это не smoke реальной модели. Реальный smoke:
+`uv run --directory backend --locked python -m app.model_clients.smoke embeddings
+--output /private/tmp/t08-embeddings.json` с доступным `EMBEDDING_BASE_URL`.
