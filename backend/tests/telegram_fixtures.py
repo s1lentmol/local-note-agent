@@ -38,3 +38,10 @@ def update(update_id=1, *, origin=None, **message):
     if origin:
         payload["forward_origin"] = origin
     return Update(update_id=update_id, message=payload)
+
+
+def forwarded(update_id=1):
+    return update(
+        update_id,
+        origin={"type": "hidden_user", "date": 1700000000, "sender_user_name": "Synthetic"},
+    )

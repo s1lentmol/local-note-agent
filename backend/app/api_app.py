@@ -10,11 +10,13 @@ from psycopg import OperationalError
 from psycopg_pool import PoolTimeout
 from starlette.exceptions import HTTPException
 
+from app.api.chat import router as chat_router
 from app.api.note_crud import router
 from app.api.search import router as search_router
 from app.config import Settings
 from app.dto import ErrorResponse
 from app.postgres import Database
+from app.services.chat import ChatError, ChatService
 from app.services.notes import NoteError, NotesService
 from app.services.search import SearchError, SearchService
 
@@ -27,6 +29,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         database = Database(settings.database_url) if settings.database_url else None
         app.state.notes = None
         app.state.search = None
+        app.state.chat = None
         try:
             if database is not None:
                 database.open()
@@ -34,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     database, processing_enabled=settings.processing_enabled
                 )
                 app.state.search = SearchService(database)
+                app.state.chat = ChatService.from_env(database, app.state.notes, app.state.search)
             yield
         finally:
             if database is not None:
@@ -44,6 +48,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def error(status, code, message):
         payload = ErrorResponse(error={"code": code, "message": message})
         return JSONResponse(status_code=status, content=payload.model_dump(mode="json"))
+
+    @app.exception_handler(ChatError)
+    async def chat_error(request: Request, exc: ChatError):
+        return error(exc.status, exc.code, exc.message)
 
     @app.exception_handler(SearchError)
     async def search_error(request: Request, exc: SearchError):
@@ -78,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(router)
     app.include_router(search_router)
+    app.include_router(chat_router)
     app.state.settings = settings
     app.add_middleware(
         CORSMiddleware,

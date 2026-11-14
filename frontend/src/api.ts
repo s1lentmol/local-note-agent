@@ -63,7 +63,7 @@ export class ApiError extends Error {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(`/api/v1/notes${path}`, options);
+    response = await fetch(`/api/v1${path}`, options);
   } catch (error) {
     if (options.signal?.aborted) throw error;
     throw new ApiError(
@@ -89,18 +89,23 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 export const api = {
+  chat: (message: string, conversationId: string | null) =>
+    request<{ conversation_id: string; text: string }>(
+      "/chat/messages",
+      json("POST", { message, conversation_id: conversationId }),
+    ),
   list(query: Query, signal: AbortSignal) {
     const params = new URLSearchParams();
     Object.entries(query).forEach(([key, value]) => {
       if (value !== "") params.set(key, String(value));
     });
-    return request<Page>(`?${params}`, { signal });
+    return request<Page>(`/notes?${params}`, { signal });
   },
   get: (id: string, signal: AbortSignal) =>
-    request<Note>(`/${encodeURIComponent(id)}`, { signal }),
+    request<Note>(`/notes/${encodeURIComponent(id)}`, { signal }),
   create: (text: string, title: string) =>
     request<Note>(
-      "",
+      "/notes",
       json("POST", {
         source_type: "text",
         text,
@@ -108,9 +113,9 @@ export const api = {
       }),
     ),
   patch: (id: string, patch: { title?: string; extracted_text?: string }) =>
-    request<Note>(`/${encodeURIComponent(id)}`, json("PATCH", patch)),
+    request<Note>(`/notes/${encodeURIComponent(id)}`, json("PATCH", patch)),
   delete: (id: string) =>
-    request<void>(`/${encodeURIComponent(id)}`, { method: "DELETE" }),
+    request<void>(`/notes/${encodeURIComponent(id)}`, { method: "DELETE" }),
 };
 export const active = (
   note: Pick<NoteItem, "ingestion_status" | "processing_status">,

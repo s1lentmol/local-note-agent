@@ -2,6 +2,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from threading import Barrier
+from unittest.mock import Mock
 
 import pytest
 from aiogram import Bot
@@ -14,7 +15,7 @@ from app.dto import TextNoteCreate
 from app.postgres import Database
 from app.repositories.sources import SourcesRepository, TelegramDelivery
 from app.services.notes import NoteError, NotesService
-from tests.telegram_fixtures import RecordingSession, update
+from tests.telegram_fixtures import RecordingSession, forwarded, update
 
 
 @pytest.fixture
@@ -65,11 +66,11 @@ def test_update_provenance_commit_and_web_visibility(service, db, database_url, 
         assert counts(db) == (1, 1, int(processing))
 
     session = RecordingSession(on_send)
-    payload = update(origin=origin)
+    payload = update(origin=origin, **({} if origin else {"is_automatic_forward": True}))
 
     async def scenario():
         bot = Bot("123:test-synthetic", session=session)
-        dispatcher = create_dispatcher(service)
+        dispatcher = create_dispatcher(service, Mock())
         await dispatcher.feed_update(bot, payload)
         await dispatcher.feed_update(bot, payload)
         await bot.session.close()
@@ -83,7 +84,9 @@ def test_update_provenance_commit_and_web_visibility(service, db, database_url, 
     assert note == ("Заголовок", False, payload.message.text)
     expected = payload.message.forward_origin
     assert row[6] == (
-        {"forward_origin": expected.model_dump(mode="json", exclude_none=True)} if origin else {}
+        {"forward_origin": expected.model_dump(mode="json", exclude_none=True)}
+        if origin
+        else {"is_automatic_forward": True}
     )
     with TestClient(create_app(Settings(database_url=database_url))) as client:
         page = client.get("/api/v1/notes").json()
@@ -136,7 +139,7 @@ def test_rollback_no_success_and_redelivery(service, db, monkeypatch, failure):
 
     async def send():
         bot = Bot("123:test-synthetic", session=session)
-        await create_dispatcher(service).feed_update(bot, update())
+        await create_dispatcher(service, Mock()).feed_update(bot, forwarded())
         await bot.session.close()
 
     with monkeypatch.context() as patch:

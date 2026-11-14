@@ -57,8 +57,9 @@ def wire(message: Message):
 
 
 class OpenAITextGenerator:
-    def __init__(self, settings, transport=None):
+    def __init__(self, settings, transport=None, *, validate_tool_arguments=True):
         self.settings, self.transport = settings, transport or HTTPTransport()
+        self.validate_tool_arguments = validate_tool_arguments
 
     def _generate(self, messages, tools=(), json_mode=False):
         payload = {
@@ -95,12 +96,16 @@ class OpenAITextGenerator:
                 function = call.function
                 if call.type != "function" or function.name not in by_name or call.id in ids:
                     raise ValueError()
-                args = by_name[function.name].arguments.model_validate_json(
-                    function.arguments, strict=True
-                )
-                calls.append(
-                    ToolCall(id=call.id, name=function.name, arguments=args.model_dump(mode="json"))
-                )
+                if self.validate_tool_arguments:
+                    args = (
+                        by_name[function.name]
+                        .arguments.model_validate_json(function.arguments, strict=True)
+                        .model_dump(mode="json")
+                    )
+                else:
+                    # Application validates the decoded object and can return a tool error.
+                    args = json.loads(function.arguments)
+                calls.append(ToolCall(id=call.id, name=function.name, arguments=args))
                 ids.add(call.id)
             content = msg.content
             if not calls and (not isinstance(content, str) or not content.strip()):

@@ -379,3 +379,38 @@ fieldset {
       border-color 0.15s;
   }
 }
+
+.site-nav {
+  display: flex;
+  gap: 1rem;
+}
+.site-nav [aria-current="page"] {
+  font-weight: 700;
+}
+.chat {
+  max-width: 760px;
+  margin-inline: auto;
+}
+.chat-turns {
+  list-style: none;
+  padding: 0;
+}
+.chat-turns p {
+  padding: 0.9rem 1rem;
+  border: 1px solid #dce2d9;
+  border-radius: 10px;
+  background: #fff;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.chat-turns strong {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+.chat-turns .chat-question {
+  margin-inline-start: 10%;
+  background: #e9eee5;
+}
+.chat .actions {
+  align-items: center;
+}

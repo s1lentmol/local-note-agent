@@ -3,9 +3,23 @@ import asyncio
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, Update
 
-from app.dto import TextNoteCreate
+from app.dto import ChatRequest, TextNoteCreate
 from app.repositories.sources import TelegramDelivery
+from app.services.chat import ChatError, ChatService, TelegramChatDelivery
 from app.services.notes import NotesService
+
+
+async def run_sync(operation, *args, **kwargs):
+    pending = asyncio.create_task(asyncio.to_thread(operation, *args, **kwargs))
+    try:
+        return await asyncio.shield(pending)
+    except asyncio.CancelledError:
+        # Drain the thread before polling shutdown closes the database pool.
+        try:
+            await pending
+        except Exception:
+            pass
+        raise
 
 
 async def save_text(
@@ -31,16 +45,7 @@ async def save_text(
             message_id=message.message_id,
             metadata=metadata,
         )
-        pending = asyncio.create_task(asyncio.to_thread(notes.create, request, delivery=delivery))
-        try:
-            note = await asyncio.shield(pending)
-        except asyncio.CancelledError:
-            # A cancelled polling task must not leave a DB thread using a closed pool.
-            try:
-                await pending
-            except Exception:
-                pass
-            raise
+        note = await run_sync(notes.create, request, delivery=delivery)
     except Exception:
         # Never log database exceptions, message content or provider credentials.
         await message.answer("Не удалось сохранить заметку. Отправьте сообщение повторно.")
@@ -50,7 +55,23 @@ async def save_text(
     await message.answer(f"Заметка сохранена: {note.id}")
 
 
-def create_dispatcher(notes: NotesService) -> Dispatcher:
-    dispatcher = Dispatcher(notes=notes)
-    dispatcher.message.register(save_text, F.text)
+async def chat_text(message: Message, event_update: Update, bot: Bot, chat: ChatService):
+    delivery = TelegramChatDelivery(bot.id, message.chat.id, event_update.update_id)
+    try:
+        response = await run_sync(chat.reply, ChatRequest(message=message.text), delivery=delivery)
+    except ChatError as exc:
+        await message.answer(exc.message)
+        return
+    except Exception:
+        await message.answer("Не удалось ответить. Отправьте вопрос повторно.")
+        return
+    await message.answer(response.text)
+
+
+def create_dispatcher(notes: NotesService, chat: ChatService) -> Dispatcher:
+    dispatcher = Dispatcher(notes=notes, chat=chat)
+    dispatcher.message.register(
+        save_text, F.text, F.forward_origin.is_not(None) | F.is_automatic_forward.is_(True)
+    )
+    dispatcher.message.register(chat_text, F.text)
     return dispatcher

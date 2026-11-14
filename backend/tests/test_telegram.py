@@ -10,7 +10,7 @@ from app.bot import __main__ as entry
 from app.bot.handlers import create_dispatcher
 from app.bot.settings import BotSettings
 from app.config import Settings
-from tests.telegram_fixtures import RecordingSession, update
+from tests.telegram_fixtures import RecordingSession, forwarded, update
 
 
 def test_dispatch_text_and_unsupported():
@@ -20,8 +20,8 @@ def test_dispatch_text_and_unsupported():
 
     async def scenario():
         bot = Bot("123:test-synthetic", session=session)
-        dispatcher = create_dispatcher(notes)
-        await dispatcher.feed_update(bot, update())
+        dispatcher = create_dispatcher(notes, Mock())
+        await dispatcher.feed_update(bot, forwarded())
         await dispatcher.feed_update(
             bot,
             update(
@@ -56,7 +56,7 @@ def test_save_failure_never_success():
 
     async def scenario():
         bot = Bot("123:test-synthetic", session=session)
-        await create_dispatcher(notes).feed_update(bot, update())
+        await create_dispatcher(notes, Mock()).feed_update(bot, forwarded())
         await bot.session.close()
 
     asyncio.run(scenario())
@@ -77,7 +77,7 @@ def test_cancel_waits_for_database_thread():
     async def scenario():
         bot = Bot("123:test-synthetic", session=RecordingSession())
         task = asyncio.create_task(
-            create_dispatcher(SimpleNamespace(create=save)).feed_update(bot, update())
+            create_dispatcher(SimpleNamespace(create=save), Mock()).feed_update(bot, forwarded())
         )
         assert await asyncio.to_thread(entered.wait, 5)
         task.cancel()
@@ -152,10 +152,10 @@ def test_real_polling_shutdown_drains_save_before_pool_close(monkeypatch):
         finished.set()
         return SimpleNamespace(id="saved")
 
-    dispatcher = create_dispatcher(SimpleNamespace(create=save))
+    dispatcher = create_dispatcher(SimpleNamespace(create=save), Mock())
 
     async def updates(*args, **kwargs):
-        yield update()
+        yield forwarded()
         await asyncio.Future()
 
     monkeypatch.setattr(dispatcher, "_listen_updates", updates)

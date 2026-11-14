@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
 import {
   active,
   api,
@@ -8,6 +8,7 @@ import {
   type Query,
   type SourceType,
 } from "./api";
+import { Chat } from "./Chat";
 import { useResource } from "./useResource";
 
 const sources: Record<SourceType, string> = {
@@ -590,34 +591,42 @@ export function App() {
         <a className="brand" href="#/">
           ◈ <span>Local Note</span>
         </a>
-        <span className="muted">Место для ваших мыслей</span>
+        <nav className="site-nav" aria-label="Разделы">
+          <a href="#/" aria-current={path === "/" ? "page" : undefined}>Заметки</a>
+          <a href="#/chat" aria-current={path === "/chat" ? "page" : undefined}>Чат</a>
+        </nav>
       </header>
-      <main key={path}>
-        {path === "/" ? (
-          <List />
-        ) : path === "/new" ? (
-          <>
-            <a className="back" href="#/">
-              ← Все заметки
-            </a>
-            <h1>Новая заметка</h1>
-            <NoteForm
-              onSave={(note) => {
-                window.location.hash = `/notes/${note.id}`;
-              }}
-              onCancel={() => {
-                window.location.hash = "/";
-              }}
-            />
-          </>
-        ) : match ? (
-          <Detail id={match[1]} />
-        ) : (
-          <>
-            <h1>Страница не найдена</h1>
-            <a href="#/">Все заметки</a>
-          </>
-        )}
+      <main>
+        <div hidden={path !== "/chat"}>
+          <Chat />
+        </div>
+        <Fragment key={path}>
+          {path === "/chat" ? null : path === "/" ? (
+            <List />
+          ) : path === "/new" ? (
+            <>
+              <a className="back" href="#/">
+                ← Все заметки
+              </a>
+              <h1>Новая заметка</h1>
+              <NoteForm
+                onSave={(note) => {
+                  window.location.hash = `/notes/${note.id}`;
+                }}
+                onCancel={() => {
+                  window.location.hash = "/";
+                }}
+              />
+            </>
+          ) : match ? (
+            <Detail id={match[1]} />
+          ) : (
+            <>
+              <h1>Страница не найдена</h1>
+              <a href="#/">Все заметки</a>
+            </>
+          )}
+        </Fragment>
       </main>
       <footer>Local Note · Заметки и состояния обработки</footer>
     </>

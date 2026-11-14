@@ -7,7 +7,9 @@ from app.bot.handlers import create_dispatcher
 from app.bot.settings import BotSettings
 from app.config import Settings
 from app.postgres import Database
+from app.services.chat import ChatService
 from app.services.notes import NotesService
+from app.services.search import SearchService
 
 
 async def run(settings: BotSettings, application: Settings):
@@ -16,10 +18,10 @@ async def run(settings: BotSettings, application: Settings):
     try:
         database = Database(application.database_url)
         database.open()
-        dispatcher = create_dispatcher(
-            NotesService(database, processing_enabled=application.processing_enabled),
-        )
-        # Sequential handling also makes shutdown wait for the current save.
+        notes = NotesService(database, processing_enabled=application.processing_enabled)
+        chat = ChatService.from_env(database, notes, SearchService(database))
+        dispatcher = create_dispatcher(notes, chat)
+        # Sequential handling also makes shutdown wait for the current request.
         # Pending updates are kept; no webhook deletion/drop_pending_updates.
         await dispatcher.start_polling(
             bot, allowed_updates=["message"], handle_as_tasks=False, close_bot_session=False
