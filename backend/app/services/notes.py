@@ -74,8 +74,11 @@ class NotesService:
                 raise NoteError("note_not_found", "Заметка не найдена.")
             if note["ingestion_status"] != "ready":
                 raise NoteError("note_not_ready", "Извлечение текста ещё не завершено.")
-            repo.cancel_jobs(note_id)
             repo.patch(note_id, patch)
+            JobsRepository.cancel_active(conn, note_id)
+            repo.clear_derived(note_id)
+            if self.processing_enabled:
+                enqueue_process(conn, note_id)
             return self._detail(conn, note_id)
 
     def delete(self, note_id: UUID) -> None:
@@ -84,15 +87,13 @@ class NotesService:
             note = repo.lock(note_id)
             if note is None:
                 raise NoteError("note_not_found", "Заметка не найдена.")
-            if note["deleted_at"] is not None:
-                # A repeated DELETE leaves an active cleanup alone; a failed cleanup can retry.
-                active = repo.active_cleanup(note_id)
-                if active is None:
-                    repo.queue_cleanup(note_id)
-                return
-            repo.cancel_jobs(note_id)
-            repo.delete(note_id)
-            repo.queue_cleanup(note_id)
+            jobs = JobsRepository(self.database)
+            if note["deleted_at"] is None:
+                repo.delete(note_id)
+                jobs.cancel_active(conn, note_id)
+                jobs.enqueue_cleanup(conn, note_id)
+            else:
+                jobs.retry_latest(conn, note_id, "cleanup")
 
     def retry(self, note_id: UUID, stage: str) -> NoteDetail:
         with self.database.transaction() as conn:
@@ -103,11 +104,6 @@ class NotesService:
                 raise NoteError("retry_not_available", "Обработчик извлечения ещё не подключён.")
             if note["ingestion_status"] != "ready" or note["processing_status"] != "failed":
                 raise NoteError("retry_not_available", "Повтор обработки сейчас недоступен.")
-            job = conn.execute(
-                """SELECT id FROM jobs WHERE note_id=%s AND kind='process' AND status='failed'
-                   ORDER BY created_at DESC, id DESC LIMIT 1""",
-                (note_id,),
-            ).fetchone()
-            if job is None or not JobsRepository(self.database).retry(job["id"], conn=conn):
+            if not JobsRepository(self.database).retry_latest(conn, note_id, stage):
                 raise NoteError("retry_not_available", "Повтор обработки сейчас недоступен.")
             return self._detail(conn, note_id)

@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from app.api_app import create_app
 from app.config import Settings
 from app.dto import NoteListQuery, NotePatch, TextNoteCreate
+from app.jobs_repository import JobsRepository
 from app.postgres import Database
 from app.repositories.sources import SourcesRepository
 from app.services.notes import NotesService
@@ -126,12 +127,11 @@ def test_mutation_rollback(service, db, monkeypatch, operation):
         def call():
             return service.patch(note.id, NotePatch(extracted_text="changed"))
     else:
-        from app.repositories.notes import NotesRepository
 
         def fail(*args):
             raise RuntimeError("injected after delete")
 
-        monkeypatch.setattr(NotesRepository, "queue_cleanup", fail)
+        monkeypatch.setattr(JobsRepository, "enqueue_cleanup", fail)
 
         def call():
             return service.delete(note.id)

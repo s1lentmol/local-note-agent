@@ -9,12 +9,15 @@ from dataclasses import dataclass, field
 import psycopg
 from psycopg.rows import dict_row
 
+from app.cleanup import CleanupHandler
+from app.config import Settings
 from app.enrichment import EnrichmentResult, EnrichmentSettings, build_enrichment
 from app.job_runner.worker import HandlerBinding
 from app.model_clients.contracts import Embedder, TextGenerator
 from app.model_clients.embeddings import OllamaEmbedder
 from app.model_clients.generation import OpenAITextGenerator
 from app.model_clients.settings import EmbeddingSettings, LLMSettings
+from app.repositories.cleanup import CleanupRepository
 from app.repositories.enrichment import EnrichmentRepository
 from app.repositories.index import IndexRepository, IndexResult, SpaceProfile
 
@@ -132,14 +135,19 @@ def publish_process(conn, job, result):
 
 
 def handlers():
+    database_url = os.environ["NOTE_AGENT_DATABASE_URL"]
     return {
         "process": HandlerBinding(
             ProcessHandler(
-                os.environ["NOTE_AGENT_DATABASE_URL"],
+                database_url,
                 EmbeddingSettings.from_env(),
                 ChunkSettings.from_env(),
                 enrichment=EnrichmentSettings.from_env(),
             ),
             publish_process,
-        )
+        ),
+        "cleanup": HandlerBinding(
+            CleanupHandler(database_url, Settings.from_env().data_dir),
+            CleanupRepository.publish,
+        ),
     }

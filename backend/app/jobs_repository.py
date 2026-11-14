@@ -193,6 +193,30 @@ class JobsRepository:
                 count += 1
         return count
 
+    @staticmethod
+    def cancel_active(conn: Connection, note_id: UUID) -> None:
+        """Cancel all active jobs while the caller holds the note lock."""
+        conn.execute(
+            """UPDATE jobs SET status='cancelled', finished_at=clock_timestamp(),
+               lease_token=NULL, lease_until=NULL
+               WHERE note_id=%s AND status IN ('queued','processing')""",
+            (note_id,),
+        )
+
+    @staticmethod
+    def enqueue_cleanup(conn: Connection, note_id: UUID) -> None:
+        """Queue the first cleanup while the caller holds the note lock."""
+        conn.execute("INSERT INTO jobs (note_id, kind) VALUES (%s, 'cleanup')", (note_id,))
+
+    def retry_latest(self, conn: Connection, note_id: UUID, kind: str) -> bool:
+        """Retry the latest job only, under the caller's note lock."""
+        row = conn.execute(
+            """SELECT id FROM jobs WHERE note_id=%s AND kind=%s
+               ORDER BY created_at DESC, id DESC LIMIT 1""",
+            (note_id, kind),
+        ).fetchone()
+        return row is not None and self.retry(row["id"], conn=conn)
+
     def retry(self, job_id: UUID, *, conn: Connection | None = None) -> bool:
         """Explicit failed -> queued transition; active sibling means no retry."""
         if conn is None:
@@ -210,7 +234,7 @@ class JobsRepository:
             return False
         if conn.execute(
             """SELECT 1 FROM jobs WHERE note_id=%s AND kind=%s
-               AND status IN ('queued','processing')""",
+               AND (status IN ('queued','processing') OR (kind='cleanup' AND status='done'))""",
             (row["note_id"], row["kind"]),
         ).fetchone():
             return False

@@ -39,6 +39,13 @@ class Storage:
             temporary.unlink(missing_ok=True)
         return key, size
 
+    def remove(self, key: str) -> None:
+        path = self.path(key)
+        # Storage keys must identify one canonical file, without aliases or symlinks.
+        if path.relative_to(self.root).as_posix() != key:
+            raise ProcessingError("invalid_storage_path", "Некорректный путь вложения.")
+        path.unlink(missing_ok=True)
+
     def remove_source(self, source_id: str):
         path = self.path(source_id)
         if path.exists():

@@ -54,14 +54,6 @@ class NotesRepository:
         ).fetchall()
         return dict(items=items, total=total, limit=query.limit, offset=query.offset)
 
-    def cancel_jobs(self, note_id):
-        self.conn.execute(
-            """UPDATE jobs SET status = 'cancelled', finished_at = clock_timestamp(),
-                      lease_token = NULL, lease_until = NULL
-               WHERE note_id = %s AND status IN ('queued', 'processing')""",
-            (note_id,),
-        )
-
     def patch(self, note_id, patch):
         self.conn.execute(
             """UPDATE notes SET title = COALESCE(%s, title),
@@ -73,6 +65,8 @@ class NotesRepository:
                WHERE id = %s""",
             (patch.title, "title" in patch.model_fields_set, patch.extracted_text, note_id),
         )
+
+    def clear_derived(self, note_id):
         for table in ("chunks", "enrichments"):
             self.conn.execute(f"DELETE FROM {table} WHERE note_id = %s", (note_id,))
         self.conn.execute(
@@ -86,13 +80,3 @@ class NotesRepository:
                WHERE id = %s""",
             (note_id,),
         )
-
-    def active_cleanup(self, note_id):
-        return self.conn.execute(
-            """SELECT id FROM jobs WHERE note_id = %s AND kind = 'cleanup'
-               AND status IN ('queued', 'processing') FOR UPDATE""",
-            (note_id,),
-        ).fetchone()
-
-    def queue_cleanup(self, note_id):
-        self.conn.execute("INSERT INTO jobs (note_id, kind) VALUES (%s, 'cleanup')", (note_id,))
