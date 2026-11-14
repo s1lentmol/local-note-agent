@@ -38,7 +38,7 @@ class NotesRepository:
             (note_id,),
         ).fetchone()
 
-    def list(self, query):
+    def list(self, query, *, collection_id=None):
         # Only fixed SQL fragments are composed; all values remain parameters.
         clauses = ["n.deleted_at IS NULL"]
         params = []
@@ -50,6 +50,12 @@ class NotesRepository:
             if value is not None:
                 clauses.append(column + " = %s")
                 params.append(value)
+        if collection_id is not None:
+            clauses.append(
+                "EXISTS (SELECT 1 FROM collection_notes cn "
+                "WHERE cn.note_id = n.id AND cn.collection_id = %s)"
+            )
+            params.append(collection_id)
         relation = " FROM notes n JOIN sources s ON s.note_id = n.id WHERE " + " AND ".join(clauses)
         total = self.conn.execute("SELECT count(*) AS total" + relation, params).fetchone()["total"]
         items = self.conn.execute(

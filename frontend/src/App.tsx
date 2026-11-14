@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type FormEvent } from "react";
+import { Fragment, useEffect, useState, type FormEvent } from "react";
 import {
   active,
   api,
@@ -9,6 +9,10 @@ import {
   type SourceType,
 } from "./api";
 import { Chat } from "./Chat";
+import { Collection, Collections } from "./Collections";
+import { ErrorBox } from "./ErrorBox";
+import { ImportProgress, Upload } from "./Imports";
+import { useOperationScope } from "./useOperationScope";
 import { useResource } from "./useResource";
 
 const sources: Record<SourceType, string> = {
@@ -37,14 +41,6 @@ const date = (value: string) =>
     dateStyle: "medium",
     timeStyle: "short",
   });
-function ErrorBox({ error, retry }: { error: Error; retry?: () => void }) {
-  return (
-    <div role="alert" className="error">
-      <p>{error.message}</p>
-      {retry && <button onClick={retry}>Повторить запрос</button>}
-    </div>
-  );
-}
 function StageError({
   title,
   error,
@@ -289,25 +285,6 @@ function List() {
     </>
   );
 }
-// A lifetime token is replaced on every effect setup, including StrictMode replay.
-// Ignore late mutation replies locally; the server may still commit the write.
-function useOperationScope() {
-  const lifetime = useRef({ active: true });
-  useEffect(() => {
-    const current = { active: true };
-    lifetime.current = current;
-    return () => {
-      current.active = false;
-    };
-  }, []);
-  return () => {
-    const current = lifetime.current;
-    const path = window.location.hash;
-    // Also cover a changed hash before React has cleaned up the old screen.
-    return () => current.active && window.location.hash === path;
-  };
-}
-
 function NoteForm({
   note,
   onSave,
@@ -416,6 +393,21 @@ function Detail({ id }: { id: string }) {
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<Error>();
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<Error>();
+  async function retryExtract() {
+    const isCurrent = beginOperation();
+    setRetrying(true);
+    setRetryError(undefined);
+    try {
+      await api.retryExtract(id);
+      if (isCurrent()) refresh();
+    } catch (error) {
+      if (isCurrent()) setRetryError(error as Error);
+    } finally {
+      if (isCurrent()) setRetrying(false);
+    }
+  }
   async function remove() {
     const isCurrent = beginOperation();
     setDeleting(true);
@@ -487,6 +479,14 @@ function Detail({ id }: { id: string }) {
                   Удалить
                 </button>
               </div>
+              {note.ingestion_status === "failed" && (
+                <div className="actions">
+                  <button disabled={retrying || loading || confirming} onClick={retryExtract}>
+                    Повторить извлечение
+                  </button>
+                </div>
+              )}
+              {retryError && <ErrorBox error={retryError} />}
               {note.ingestion_status !== "ready" && (
                 <p className="muted">
                   Редактирование доступно после успешного извлечения текста.
@@ -547,9 +547,9 @@ function Detail({ id }: { id: string }) {
                   <div className="full-text">{note.source.original_text}</div>
                 ) : (
                   <>
-                    <p className="muted">
-                      Текстового оригинала у этого источника нет.
-                    </p>
+                    {note.attachments.length === 0 && (
+                      <p className="muted">Текстового оригинала у этого источника нет.</p>
+                    )}
                     {note.source.original_url && (
                       <p className="full-text">
                         Исходная ссылка: {note.source.original_url}
@@ -557,7 +557,7 @@ function Detail({ id }: { id: string }) {
                     )}
                     {note.attachments.map((file) => (
                       <p key={file.id}>
-                        {file.original_name} · {file.mime_type} ·{" "}
+                        <a href={file.download_url}>{file.original_name}</a> · {file.mime_type} ·{" "}
                         {file.size_bytes.toLocaleString("ru-RU")} байт
                       </p>
                     ))}
@@ -584,6 +584,8 @@ export function App() {
     window.addEventListener("hashchange", change);
     return () => window.removeEventListener("hashchange", change);
   }, []);
+  const batch = /^\/imports\/([0-9a-f-]{36})$/i.exec(path);
+  const collection = /^\/collections\/([0-9a-f-]{36})$/i.exec(path);
   const match = /^\/notes\/([0-9a-f-]{36})$/i.exec(path);
   return (
     <>
@@ -593,6 +595,8 @@ export function App() {
         </a>
         <nav className="site-nav" aria-label="Разделы">
           <a href="#/" aria-current={path === "/" ? "page" : undefined}>Заметки</a>
+          <a href="#/imports" aria-current={path.startsWith("/imports") ? "page" : undefined}>Загрузка</a>
+          <a href="#/collections" aria-current={path.startsWith("/collections") ? "page" : undefined}>Подборки</a>
           <a href="#/chat" aria-current={path === "/chat" ? "page" : undefined}>Чат</a>
         </nav>
       </header>
@@ -618,6 +622,14 @@ export function App() {
                 }}
               />
             </>
+          ) : path === "/imports" ? (
+            <Upload />
+          ) : batch ? (
+            <ImportProgress id={batch[1]} />
+          ) : path === "/collections" ? (
+            <Collections />
+          ) : collection ? (
+            <Collection id={collection[1]} />
           ) : match ? (
             <Detail id={match[1]} />
           ) : (

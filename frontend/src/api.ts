@@ -1,4 +1,4 @@
-// Mirrors the implemented CRUD subset of backend/app/dto.py.
+// Mirrors the implemented HTTP contracts in backend/app/dto.py.
 export type SourceType =
   "text" | "text_file" | "url" | "image" | "audio" | "pdf";
 export type IngestionStatus = "queued" | "processing" | "ready" | "failed";
@@ -43,6 +43,36 @@ export interface Page {
   total: number;
   limit: number;
   offset: number;
+}
+export type ImportStatus = "queued" | "processing" | "done" | "failed";
+export interface ImportAccepted {
+  batch_id: string;
+  collection_id: string;
+  item_ids: string[];
+}
+export interface ImportDetail {
+  id: string;
+  collection_id: string | null;
+  status: ImportStatus;
+  total: number;
+  succeeded: number;
+  failed: number;
+  items: {
+    id: string;
+    original_name: string;
+    status: ImportStatus;
+    note_id: string | null;
+    error: Failure | null;
+  }[];
+}
+export interface CollectionSummary {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+export interface CollectionDetail extends CollectionSummary {
+  notes: Page;
 }
 export interface Query {
   limit: number;
@@ -89,6 +119,26 @@ const json = (method: string, body: unknown): RequestInit => ({
   body: JSON.stringify(body),
 });
 export const api = {
+  upload: (form: FormData) =>
+    request<ImportAccepted>("/imports", { method: "POST", body: form }),
+  importDetail: (id: string, signal: AbortSignal) =>
+    request<ImportDetail>(`/imports/${encodeURIComponent(id)}`, { signal }),
+  collections: (signal: AbortSignal) =>
+    request<CollectionSummary[]>("/collections", { signal }),
+  collection: (id: string, offset: number, signal: AbortSignal) =>
+    request<CollectionDetail>(`/collections/${encodeURIComponent(id)}?offset=${offset}`, { signal }),
+  createCollection: (title: string) =>
+    request<CollectionSummary>("/collections", json("POST", { title })),
+  addCollectionNotes: (id: string, noteIds: string[]) =>
+    request<void>(`/collections/${encodeURIComponent(id)}/notes`, json("POST", { note_ids: noteIds })),
+  removeCollectionNote: (id: string, noteId: string) =>
+    request<void>(`/collections/${encodeURIComponent(id)}/notes/${encodeURIComponent(noteId)}`, {
+      method: "DELETE",
+    }),
+  deleteCollection: (id: string) =>
+    request<void>(`/collections/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  retryExtract: (id: string) =>
+    request<Note>(`/notes/${encodeURIComponent(id)}/retry`, json("POST", { stage: "extract" })),
   chat: (message: string, conversationId: string | null) =>
     request<{ conversation_id: string; text: string }>(
       "/chat/messages",

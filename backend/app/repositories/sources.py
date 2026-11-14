@@ -35,13 +35,20 @@ class SourcesRepository:
         )
 
     def create_telegram_text(self, note_id, text, delivery: TelegramDelivery):
+        self._create_telegram(note_id, "text", text, delivery)
+
+    def create_telegram_file(self, note_id, delivery: TelegramDelivery):
+        return self._create_telegram(note_id, "text_file", None, delivery)
+
+    def _create_telegram(self, note_id, source_type, text, delivery):
         row = self.conn.execute(
             """INSERT INTO sources (note_id, type, original_text, channel, delivery_scope,
                    delivery_id, telegram_chat_id, telegram_message_id, metadata)
-               VALUES (%s, 'text', %s, 'telegram', %s, %s, %s, %s, %s)
+               VALUES (%s, %s, %s, 'telegram', %s, %s, %s, %s, %s)
                ON CONFLICT (channel, delivery_scope, delivery_id) DO NOTHING RETURNING id""",
             (
                 note_id,
+                source_type,
                 text,
                 str(delivery.bot_id),
                 str(delivery.update_id),
@@ -52,6 +59,7 @@ class SourcesRepository:
         ).fetchone()
         if row is None:
             raise DuplicateDelivery
+        return row["id"]
 
     def telegram_note_id(self, delivery: TelegramDelivery):
         return self.conn.execute(

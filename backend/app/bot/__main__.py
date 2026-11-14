@@ -8,6 +8,8 @@ from app.bot.settings import BotSettings
 from app.config import Settings
 from app.postgres import Database
 from app.services.chat import ChatService
+from app.services.file_import import FileImportService
+from app.services.imports import ImportsService
 from app.services.notes import NotesService
 from app.services.search import SearchService
 
@@ -20,8 +22,9 @@ async def run(settings: BotSettings, application: Settings):
         database.open()
         notes = NotesService(database, processing_enabled=application.processing_enabled)
         chat = ChatService.from_env(database, notes, SearchService(database))
-        dispatcher = create_dispatcher(notes, chat)
-        # Sequential handling also makes shutdown wait for the current request.
+        imports = ImportsService(FileImportService(database, application))
+        dispatcher = create_dispatcher(notes, chat, imports)
+        # Dispatcher shutdown flushes pending groups before the pool/session close.
         # Pending updates are kept; no webhook deletion/drop_pending_updates.
         await dispatcher.start_polling(
             bot, allowed_updates=["message"], handle_as_tasks=False, close_bot_session=False

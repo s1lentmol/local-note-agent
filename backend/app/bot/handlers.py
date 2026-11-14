@@ -3,6 +3,7 @@ import asyncio
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, Update
 
+from app.bot.documents import TelegramDocuments
 from app.dto import ChatRequest, TextNoteCreate
 from app.repositories.sources import TelegramDelivery
 from app.services.chat import ChatError, ChatService, TelegramChatDelivery
@@ -68,10 +69,17 @@ async def chat_text(message: Message, event_update: Update, bot: Bot, chat: Chat
     await message.answer(response.text)
 
 
-def create_dispatcher(notes: NotesService, chat: ChatService) -> Dispatcher:
+def create_dispatcher(
+    notes: NotesService, chat: ChatService, imports=None, *, group_window=None
+) -> Dispatcher:
     dispatcher = Dispatcher(notes=notes, chat=chat)
     dispatcher.message.register(
         save_text, F.text, F.forward_origin.is_not(None) | F.is_automatic_forward.is_(True)
     )
     dispatcher.message.register(chat_text, F.text)
+    if imports is not None:
+        options = {"window": group_window} if group_window is not None else {}
+        documents = TelegramDocuments(imports, run_sync, **options)
+        dispatcher.message.register(documents.document, F.document)
+        dispatcher.shutdown.register(documents.close)
     return dispatcher

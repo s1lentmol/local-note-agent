@@ -382,7 +382,14 @@ fieldset {
 
 .site-nav {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+}
+@media (max-width: 560px) {
+  .site-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 .site-nav [aria-current="page"] {
   font-weight: 700;
@@ -413,4 +420,24 @@ fieldset {
 }
 .chat .actions {
   align-items: center;
+}
+
+.material-row {
+  padding: 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+.material-row p {
+  margin: 0.45rem 0 0;
+}
+.material-row .badge {
+  white-space: nowrap;
+}
+progress {
+  width: min(100%, 24rem);
+  accent-color: #245a49;
 }
