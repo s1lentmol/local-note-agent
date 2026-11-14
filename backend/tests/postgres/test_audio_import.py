@@ -310,7 +310,9 @@ def test_telegram_audio_delivery_commit_and_provenance(audio_system, db):
         for payload in (
             first,
             first,
-            update(2, text=None, voice=voice),
+            update(
+                2, text=None, voice=voice, origin=forwarded().message.forward_origin.model_dump()
+            ),
             update(3, text=None, media_group_id="group", audio={**voice, "file_name": "song.opus"}),
             update(
                 4,
@@ -318,8 +320,18 @@ def test_telegram_audio_delivery_commit_and_provenance(audio_system, db):
                 media_group_id="group",
                 document={"file_id": "document", "file_unique_id": "doc", "file_name": "song.ogg"},
             ),
-            update(5, text=None, voice={**voice, "file_id": "too-big"}),
-            update(6, text=None, voice={**voice, "file_size": settings.audio_max_bytes + 1}),
+            update(
+                5,
+                text=None,
+                voice={**voice, "file_id": "too-big"},
+                origin=forwarded().message.forward_origin.model_dump(),
+            ),
+            update(
+                6,
+                text=None,
+                voice={**voice, "file_size": settings.audio_max_bytes + 1},
+                origin=forwarded().message.forward_origin.model_dump(),
+            ),
         ):
             await dispatcher.feed_update(bot, payload)
         await dispatcher.emit_shutdown(bot=bot)

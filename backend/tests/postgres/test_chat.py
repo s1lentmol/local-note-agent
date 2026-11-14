@@ -20,7 +20,7 @@ from app.model_clients.testing import FakeTextGenerator
 from app.postgres import Database
 from app.services.chat import NO_EVIDENCE, ChatError, ChatService, TelegramChatDelivery
 from app.services.notes import NotesService
-from app.services.search import SearchError, SearchService, SearchSettings
+from app.services.search import SearchService, SearchSettings
 from tests.chat_fixtures import answer, tools
 from tests.indexing_fixtures import FixtureEmbedder
 from tests.model_clients.test_clients import Transport, call, completion
@@ -189,7 +189,7 @@ def test_errors_leave_no_partial_turn_and_retry_can_succeed(db, database_url):
         chat = ChatService(database, NotesService(database), broken, generator)
         delivery = TelegramChatDelivery(123, 42, 1)
         request = ChatRequest(message="Mars")
-        with pytest.raises(SearchError, match="embedding_unavailable"):
+        with pytest.raises(ChatError, match="Модель"):
             chat.reply(request, delivery=delivery)
         with pytest.raises(ChatError, match="Модель"):
             chat.reply(request, delivery=delivery)

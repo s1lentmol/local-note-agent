@@ -40,6 +40,21 @@ class SourcesRepository:
     def create_telegram_file(self, note_id, delivery: TelegramDelivery, source_type):
         return self._create_telegram(note_id, source_type, None, delivery)
 
+    def adopt_voice(self, note_id, delivery: TelegramDelivery, language: str):
+        return self.conn.execute(
+            """UPDATE sources SET type='audio', original_text=NULL, channel='telegram',
+               delivery_scope=%s, delivery_id=%s, telegram_chat_id=%s,
+               telegram_message_id=%s, metadata=%s WHERE note_id=%s RETURNING id""",
+            (
+                str(delivery.bot_id),
+                str(delivery.update_id),
+                delivery.chat_id,
+                delivery.message_id,
+                Jsonb({**delivery.metadata, "language": language}),
+                note_id,
+            ),
+        ).fetchone()["id"]
+
     def set_language(self, note_id, language):
         self.conn.execute(
             """UPDATE sources SET metadata=metadata || jsonb_build_object('language', %s::text)

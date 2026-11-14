@@ -8,7 +8,7 @@ from migrate import MIGRATIONS, MigrationError, discover, migrate
 
 
 def test_empty_database_and_repeat(database_url):
-    assert migrate(database_url) == [1, 2]
+    assert migrate(database_url) == [1, 2, 3]
     assert migrate(database_url) == []
     with psycopg.connect(database_url) as conn:
         assert conn.execute("SELECT number, checksum FROM schema_migrations").fetchall() == [
@@ -36,6 +36,7 @@ def test_empty_database_and_repeat(database_url):
             "note_links",
             "conversations",
             "messages",
+            "chat_actions",
         }
 
 

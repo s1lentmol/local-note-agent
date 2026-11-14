@@ -149,7 +149,7 @@ export const api = {
   retryExtract: (id: string) =>
     request<Note>(`/notes/${encodeURIComponent(id)}/retry`, json("POST", { stage: "extract" })),
   chat: (message: string, conversationId: string | null) =>
-    request<{ conversation_id: string; text: string }>(
+    request<{ conversation_id: string; text: string; operations: { type: string; id: string; note_id?: string | null }[] }>(
       "/chat/messages",
       json("POST", { message, conversation_id: conversationId }),
     ),

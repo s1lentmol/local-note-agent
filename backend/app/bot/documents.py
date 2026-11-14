@@ -51,7 +51,8 @@ class MediaGroup:
 
 
 class TelegramDocuments:
-    def __init__(self, imports, run_sync, *, window=GROUP_WINDOW_SECONDS):
+    def __init__(self, imports, run_sync, *, window=GROUP_WINDOW_SECONDS, voice_chat=None):
+        self.voice_chat = voice_chat
         self.imports = imports
         self.run_sync = run_sync
         self.window = window
@@ -62,6 +63,15 @@ class TelegramDocuments:
 
     async def document(self, message: Message, event_update: Update, bot: Bot):
         if self.closing:
+            return
+        if (
+            self.voice_chat is not None
+            and message.voice is not None
+            and message.forward_origin is None
+            and not message.is_automatic_forward
+            and message.media_group_id is None
+        ):
+            await self._voice(bot, message, event_update.update_id)
             return
         scope = f"{bot.id}:{message.chat.id}"
         delivery_id = event_update.update_id
@@ -92,6 +102,29 @@ class TelegramDocuments:
         # Keep collection bounded even for updates outside Telegram's group contract.
         if group.ready.is_set():
             await asyncio.shield(group.task)
+
+    async def _voice(self, bot, message, update_id):
+        from app.services.chat import ChatError, TelegramChatDelivery
+
+        delivery = TelegramChatDelivery(bot.id, message.chat.id, update_id)
+        try:
+            cached = await self.run_sync(self.voice_chat.chat.delivered, delivery)
+            if cached is not None:
+                await message.answer(cached.text)
+                return
+            with ExitStack() as stack:
+                item = await self._download(stack, bot, update_id, message)
+                if item.error is not None:
+                    raise item.error
+                response = await self.run_sync(
+                    self.voice_chat.reply, item.stream, item.name, item.delivery, delivery
+                )
+            reply = response.text
+        except (ProcessingError, ChatError) as exc:
+            reply = exc.message
+        except Exception:
+            reply = "Не удалось обработать голосовое сообщение. Повторите отправку."
+        await message.answer(reply)
 
     async def _flush(self, bot, key, group):
         try:

@@ -1,6 +1,12 @@
 import { useRef, useState, type FormEvent } from "react";
 import { api } from "./api";
 
+type Operation = { type: string; id: string; note_id?: string | null };
+const operationLabels: Record<string, string> = {
+  save_note: "Заметка сохранена", update_note: "Заметка изменена",
+  create_collection: "Подборка создана", add_to_collection: "Заметка добавлена в подборку",
+  remove_from_collection: "Заметка исключена из подборки",
+};
 const storageKey = "local-note-chat-conversation";
 
 function storedConversation(): string | null {
@@ -22,7 +28,7 @@ function storeConversation(id: string | null) {
 
 export function Chat() {
   const [conversationId, setConversationId] = useState(storedConversation);
-  const [turns, setTurns] = useState<{ question: string; answer: string }[]>([]);
+  const [turns, setTurns] = useState<{ question: string; answer: string; operations: Operation[] }[]>([]);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [sending, setSending] = useState(false);
@@ -39,7 +45,7 @@ export function Chat() {
       const reply = await api.chat(question, conversationId);
       storeConversation(reply.conversation_id);
       setConversationId(reply.conversation_id);
-      setTurns((previous) => [...previous, { question, answer: reply.text }]);
+      setTurns((previous) => [...previous, { question, answer: reply.text, operations: reply.operations }]);
       setMessage("");
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось отправить сообщение.");
@@ -71,10 +77,19 @@ export function Chat() {
       )}
       {turns.length > 0 && (
         <ol className="chat-turns" aria-label="Диалог" aria-live="polite">
-          {turns.map(({ question, answer }, index) => (
+          {turns.map(({ question, answer, operations }, index) => (
             <li key={index}>
               <p className="chat-question"><strong>Вы</strong>{question}</p>
               <p><strong>Ответ</strong>{answer}</p>
+              {operations.length > 0 && <ul aria-label="Выполненные действия">
+                {operations.map((operation, i) => <li key={i}>
+                  {operationLabels[operation.type] || operation.type}{" · "}
+                  <a href={`#/${operation.type.endsWith("note") ? "notes" : "collections"}/${operation.id}`}>
+                    {operation.type.endsWith("note") ? "Открыть заметку" : "Открыть подборку"}
+                  </a>
+                  {operation.note_id && <> · <a href={`#/notes/${operation.note_id}`}>Открыть заметку</a></>}
+                </li>)}
+              </ul>}
             </li>
           ))}
         </ol>

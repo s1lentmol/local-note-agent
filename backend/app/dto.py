@@ -294,6 +294,7 @@ class Operation(DTO):
         "delete_collection",
     ]
     id: UUID
+    note_id: UUID | None = None
 
 
 class ChatResponse(DTO):

@@ -247,7 +247,7 @@ def test_search_migration_backfills_existing_notes(database_url, tmp_path):
     migrate(database_url, tmp_path)
     with psycopg.connect(database_url, autocommit=True) as conn:
         expected = seed(conn, "Upgrade", "Existing transactions")
-    assert migrate(database_url) == [2]
+    assert migrate(database_url) == [2, 3]
     with Database(database_url) as database:
         search = service(database, settings=SearchSettings(dense_enabled=False))
         assert ids(search.search(SearchRequest(query="transaction"))) == [expected]

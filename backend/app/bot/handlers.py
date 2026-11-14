@@ -57,7 +57,9 @@ async def save_text(
 
 
 async def chat_text(message: Message, event_update: Update, bot: Bot, chat: ChatService):
-    delivery = TelegramChatDelivery(bot.id, message.chat.id, event_update.update_id)
+    delivery = TelegramChatDelivery(
+        bot.id, message.chat.id, event_update.update_id, message.message_id
+    )
     try:
         response = await run_sync(chat.reply, ChatRequest(message=message.text), delivery=delivery)
     except ChatError as exc:
@@ -70,7 +72,7 @@ async def chat_text(message: Message, event_update: Update, bot: Bot, chat: Chat
 
 
 def create_dispatcher(
-    notes: NotesService, chat: ChatService, imports=None, *, group_window=None
+    notes: NotesService, chat: ChatService, imports=None, *, group_window=None, voice_chat=None
 ) -> Dispatcher:
     dispatcher = Dispatcher(notes=notes, chat=chat)
     dispatcher.message.register(
@@ -79,7 +81,11 @@ def create_dispatcher(
     dispatcher.message.register(chat_text, F.text)
     if imports is not None:
         options = {"window": group_window} if group_window is not None else {}
-        documents = TelegramDocuments(imports, run_sync, **options)
+        if voice_chat is None:
+            from app.services.voice_chat import VoiceChatService
+
+            voice_chat = VoiceChatService(chat, imports.files)
+        documents = TelegramDocuments(imports, run_sync, voice_chat=voice_chat, **options)
         dispatcher.message.register(documents.document, F.document | F.voice | F.audio)
         dispatcher.shutdown.register(documents.close)
     return dispatcher

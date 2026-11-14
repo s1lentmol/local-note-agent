@@ -46,9 +46,10 @@ def test_invalid_arguments_and_unavailable_tool_are_paired_results():
         "invalid_arguments",
         "invalid_arguments",
         "invalid_arguments",
-        "unknown_tool",
+        "invalid_arguments",
     ]
-    assert turn[-1].content == NO_EVIDENCE
+    assert "Операция не выполнена" in turn[-1].content
+    assert turn[-1].content != NO_EVIDENCE
     search.search.assert_not_called()
     notes.get.assert_not_called()
 
@@ -91,7 +92,7 @@ def test_context_drops_complete_turn_and_clips_utf8_and_json():
     )
     text = 'Экранирование "\\\\" и юникод. ' * 1000
     notes.get.return_value = Mock(id=note_id, title="Title", extracted_text=text)
-    settings = ChatSettings(context_tokens=3400, tool_result_bytes=330)
+    settings = ChatSettings(context_tokens=6500, tool_result_bytes=330)
     chat = ChatService(None, notes, search, generator, settings)
     history = [[Message(role="user", content="Я" * 1600), Message(role="assistant", content="Да")]]
     turn = chat._generate(Message(role="user", content="Вопрос"), history, None)
