@@ -15,7 +15,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--retry", type=str, help="Explicitly retry a failed job UUID, then exit")
     args = parser.parse_args()
-    # The default factory registers process and cleanup.
+    # The default factory registers extract, process and cleanup.
     factory_path = os.environ.get("NOTE_AGENT_PG_WORKER_HANDLERS", "app.indexing:handlers")
     handlers = {}
     if factory_path:

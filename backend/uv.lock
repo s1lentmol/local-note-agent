@@ -984,6 +984,7 @@ dependencies = [
     { name = "pgvector" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "pydantic" },
+    { name = "python-multipart" },
     { name = "uvicorn" },
 ]
 
@@ -995,7 +996,6 @@ prototype = [
     { name = "faster-whisper" },
     { name = "pillow" },
     { name = "pytesseract" },
-    { name = "python-multipart" },
     { name = "sqlalchemy" },
     { name = "trafilatura" },
     { name = "urllib3" },
@@ -1022,7 +1022,7 @@ requires-dist = [
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2,<4" },
     { name = "pydantic", specifier = ">=2.9,<3" },
     { name = "pytesseract", marker = "extra == 'prototype'", specifier = ">=0.3.13,<1" },
-    { name = "python-multipart", marker = "extra == 'prototype'", specifier = ">=0.0.20,<1" },
+    { name = "python-multipart", specifier = ">=0.0.20,<1" },
     { name = "sqlalchemy", marker = "extra == 'prototype'", specifier = ">=2.0,<2.1" },
     { name = "trafilatura", marker = "extra == 'prototype'", specifier = ">=2,<3" },
     { name = "urllib3", marker = "extra == 'prototype'", specifier = ">=2.5,<3" },

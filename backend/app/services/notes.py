@@ -100,9 +100,12 @@ class NotesService:
             note = NotesRepository(conn).lock(note_id)
             if note is None or note["deleted_at"] is not None:
                 raise NoteError("note_not_found", "Заметка не найдена.")
-            if stage != "process":
-                raise NoteError("retry_not_available", "Обработчик извлечения ещё не подключён.")
-            if note["ingestion_status"] != "ready" or note["processing_status"] != "failed":
+            available = (stage == "extract" and note["ingestion_status"] == "failed") or (
+                stage == "process"
+                and note["ingestion_status"] == "ready"
+                and note["processing_status"] == "failed"
+            )
+            if not available:
                 raise NoteError("retry_not_available", "Повтор обработки сейчас недоступен.")
             if not JobsRepository(self.database).retry_latest(conn, note_id, stage):
                 raise NoteError("retry_not_available", "Повтор обработки сейчас недоступен.")

@@ -60,14 +60,14 @@ uv run --directory backend --locked uvicorn app.api_app:app --host 127.0.0.1 --p
 
 Проверка первого запуска на пустом volume: Docker-сборка, явные миграции
 (включая повтор), HTTP health, pgvector, создание/чтение заметки и сохранность
-SQL-данных и полной заметки после остановки и повторного запуска:
+SQL-данных, полной заметки и побайтового оригинала после остановки и повторного запуска:
 
 ```sh
 COMPOSE_PROJECT_NAME=backend-check-unique NOTE_AGENT_PORT=18081 sh scripts/check-backend.sh
 ```
 
-Скрипт использует только новый volume: отказывается работать, если volume уже
-существует, и сохраняет его после остановки сервисов. Для повторного запуска
+Скрипт использует новые volumes PostgreSQL и оригиналов: отказывается работать,
+если хотя бы один уже существует, и сохраняет их после остановки сервисов. Для повторного запуска
 выберите новое имя проекта. Модели и Telegram token для проверки не нужны.
 
 ## Приложение-прототип и worker
@@ -479,6 +479,11 @@ spawn-picklable callable. Она выполняется в отдельном п
 Отсутствие writer при попытке publish означает ошибку, без успешного завершения.
 Прямой вызов `repository.publish(job, writer, payload, complete=True)` позволяет
 атомарно записать финальные данные и завершить job в прикладном SQL-коде.
+Для одношагового extract production `HandlerBinding` задаёт
+`complete_on_publish=True`: worker вызывает тот же `publish(..., complete=True)`.
+Текст, ready, постановка process и завершение extract фиксируются вместе.
+После финальной публикации отдельный `done` не завершает job повторно.
+Process сохраняет промежуточные публикации индекса и обогащения.
 
 Порядок каждой защищённой операции: `notes FOR UPDATE`, затем `jobs FOR UPDATE`,
 проверка принадлежности/вида, processing/token и `lease_until > clock_timestamp()`.
@@ -546,9 +551,9 @@ uv run --directory backend --locked python -m app.services.processing
 ```
 
 Production factory по умолчанию — `app.indexing:handlers`, регистрирует
-process и cleanup через `HandlerBinding`. `NOTE_AGENT_PG_WORKER_HANDLERS` задаёт
+extract, process и cleanup через `HandlerBinding`. `NOTE_AGENT_PG_WORKER_HANDLERS` задаёт
 явный override для тестов/интеграции; пустое значение отключает все обработчики.
-Extract будет подключён в T11. Пока его задания завершаются ошибкой `handler_missing`.
+Extract использует строгий TXT/Markdown extractor T11; инструкции ниже.
 
 `NOTE_AGENT_CHUNK_SIZE=600`, `NOTE_AGENT_CHUNK_OVERLAP=80` задают приближённые
 токены: группа до четырёх букв/цифр либо один знак пунктуации. Это оценка,
@@ -590,8 +595,8 @@ uv run --directory backend --locked python -m app.postgres_worker --retry JOB_UU
 
 API возвращает `202 Accepted` и сохранённую полную карточку с queued;
 недоступный повтор — 409, удалённая
-заметка — 404, неверное тело — 422. `stage=extract` пока возвращает 409.
-HTTP retry использует `JobsRepository.retry` для последнего process внутри
+заметка — 404, неверное тело — 422. `stage=extract` повторяет failed извлечение.
+HTTP retry использует `JobsRepository.retry` для последнего job выбранной стадии внутри
 транзакции с блокировкой заметки. Правки и cleanup описаны в разделе T14.
 
 Постоянные проверки (входят в существующие Makefile/CI команды):
@@ -1011,3 +1016,75 @@ NOTE_AGENT_CHAT_SMOKE=1 LLM_BASE_URL=http://127.0.0.1:11435/v1 \
   LLM_OPTIONS='{"temperature":0,"seed":42,"reasoning_effort":"none"}' \
   sh scripts/test-postgres.sh -q -s -k chat_real_endpoint
 ```
+
+## T11: оригиналы и TXT/Markdown
+
+`POST /api/v1/notes/import` принимает multipart: `source_type=text_file`,
+ровно один `file`, необязательный `title`. Поддерживаются расширения `.txt`,
+`.md`, `.markdown` без учёта регистра. MIME клиента не доказывает формат:
+worker строго декодирует содержимое как UTF-8, допускается UTF-8 BOM.
+UTF-16, Windows-1251 и другие кодировки не поддерживаются: предварительно
+преобразуйте их в UTF-8. Ошибки декодирования не заменяются символом замены.
+NUL и управляющие символы кроме TAB/CR/LF отклоняются как бинарное содержимое.
+Markdown сохраняется обычным текстом с исходными заголовками, абзацами,
+пробелами и переводами строк; BOM исключается только из extracted_text.
+
+```sh
+curl --fail -X POST http://127.0.0.1:8000/api/v1/notes/import \
+  -F source_type=text_file -F 'file=@/tmp/notes.md' -F 'title=Конспект'
+curl --fail http://127.0.0.1:8000/api/v1/attachments/ATTACHMENT_UUID/download \
+  --output /tmp/original.md
+curl --fail -X POST http://127.0.0.1:8000/api/v1/notes/NOTE_UUID/retry \
+  -H 'Content-Type: application/json' -d '{"stage":"extract"}'
+```
+
+Импорт возвращает `202` и полную карточку с queued ingestion. Без title заголовок
+берётся из последнего компонента имени файла (до 200 символов),
+`title_is_explicit=false`; явный title защищён от автоматического обогащения.
+Пользовательское имя хранится в метаданных вложения. Служебный ключ
+`<attachment UUID>/original` не зависит от него и не возвращается API.
+Storage сохраняет исходные байты до открытия SQL-транзакции; note/source/attachment
+и extract job создаются одной транзакцией. При ошибке SQL оригинал удаляется,
+при ошибке записи временный файл удаляется самим Storage.
+
+`NOTE_AGENT_TEXT_FILE_MAX_BYTES` по умолчанию 1048576 (1 MiB),
+`NOTE_AGENT_TEXT_MAX_CHARS` — 100000; допускается уменьшение лимитов.
+Пустой файл отклоняется при загрузке (`422`, `empty_file`), превышение байтового
+лимита — `413`, неподдерживаемое расширение или source_type — `422`.
+Пустой после декодирования текст, бинарное содержимое, неверная кодировка и
+превышение числа символов переводят ingestion в failed с безопасными code/message.
+Оригинал остаётся доступен. Текст не обрезается; ограничение заголовка не затрагивает
+содержимое файла. Retry возвращает `202`, использует тот же failed job, снимает
+ошибку и не создаёт дубликатов; повтор при queued/processing/ready даёт `409`.
+
+Один worker запускается через `app.postgres_worker`, default factory —
+`app.indexing:handlers`. Она регистрирует все три обработчика; process сохраняет
+индексирование и обогащение T08/T13, cleanup — очистку T14. Extract читает
+метаданные через autocommit и закрывает соединение перед чтением и декодированием
+файла. Writer делает только SQL под защитой note → job, token/lease и deleted_at.
+При включённом `NOTE_AGENT_PROCESSING_ENABLED` process ставится в той же транзакции
+публикации; иначе остаётся not_requested. До ready PATCH даёт `409`; DELETE
+отменяет extract, и старый результат не публикуется. Истёкшая lease также запрещает
+публикацию. Download возвращает `404` для удалённой заметки или отсутствующего файла.
+
+Нативные API и worker используют одинаковый абсолютный `NOTE_AGENT_DATA_DIR`.
+В Compose оригиналы хранятся в `<compose-project>_originals-data`, `/app/data`
+доступен пользователю контейнера. Для запуска единственного worker в Compose
+с теми же БД и volume используйте отдельный терминал:
+
+```sh
+docker compose run --rm --no-deps api python -m app.postgres_worker
+```
+
+Не запускайте одновременно второй нативный worker для этой БД. API и worker
+должны получать одинаковое значение processing_enabled. Тесты входят в постоянные
+`make lint test`, `make test-db` и `sh scripts/check-backend.sh`:
+
+```sh
+sh scripts/test-postgres.sh -q -k file_import
+uv run --directory backend --locked --extra prototype pytest tests --ignore=tests/postgres
+```
+
+SQL-сценарии используют изолированный PostgreSQL/pgvector и временный Storage;
+embeddings и генерация — тестовые адаптеры. Compose smoke использует новые volumes,
+проверяет upload/download и сохранность оригинала после перезапуска без моделей.

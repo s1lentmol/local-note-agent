@@ -8,7 +8,8 @@ COPY app ./app
 COPY migrate.py ./
 COPY migrations ./migrations
 RUN uv sync --locked --no-dev --no-editable \
-    && useradd --uid 10001 --create-home appuser
+    && useradd --uid 10001 --create-home appuser \
+    && mkdir /app/data && chown appuser:appuser /app/data
 ENV PATH="/app/.venv/bin:$PATH"
 USER appuser
 EXPOSE 8000

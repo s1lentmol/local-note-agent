@@ -12,6 +12,7 @@ from psycopg.rows import dict_row
 from app.cleanup import CleanupHandler
 from app.config import Settings
 from app.enrichment import EnrichmentResult, EnrichmentSettings, build_enrichment
+from app.extraction import ExtractHandler, publish_extract
 from app.job_runner.worker import HandlerBinding
 from app.model_clients.contracts import Embedder, TextGenerator
 from app.model_clients.embeddings import OllamaEmbedder
@@ -137,6 +138,11 @@ def publish_process(conn, job, result):
 def handlers():
     database_url = os.environ["NOTE_AGENT_DATABASE_URL"]
     return {
+        "extract": HandlerBinding(
+            ExtractHandler(database_url, Settings.from_env()),
+            publish_extract,
+            complete_on_publish=True,
+        ),
         "process": HandlerBinding(
             ProcessHandler(
                 database_url,

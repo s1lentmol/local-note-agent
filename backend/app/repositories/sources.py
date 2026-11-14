@@ -22,6 +22,12 @@ class SourcesRepository:
     def __init__(self, conn):
         self.conn = conn
 
+    def create_file(self, note_id):
+        return self.conn.execute(
+            "INSERT INTO sources(note_id,type) VALUES (%s,'text_file') RETURNING id",
+            (note_id,),
+        ).fetchone()["id"]
+
     def create_text(self, note_id, text):
         self.conn.execute(
             "INSERT INTO sources (note_id, type, original_text) VALUES (%s, 'text', %s)",

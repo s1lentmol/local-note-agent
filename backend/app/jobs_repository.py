@@ -89,6 +89,12 @@ class JobsRepository:
                        updated_at=clock_timestamp() WHERE id=%s""",
                     (job["note_id"],),
                 )
+            if job["kind"] == "extract":
+                conn.execute(
+                    """UPDATE notes SET ingestion_status='processing', ingestion_error=NULL,
+                       updated_at=clock_timestamp() WHERE id=%s""",
+                    (job["note_id"],),
+                )
             return Job(job["id"], job["note_id"], job["kind"], token, job["attempts"] + 1)
 
     @contextmanager
@@ -143,6 +149,13 @@ class JobsRepository:
                 ),
             )
 
+        if job.kind == "extract" and status == "failed":
+            conn.execute(
+                """UPDATE notes SET ingestion_status='failed', ingestion_error=%s,
+                   updated_at=clock_timestamp() WHERE id=%s""",
+                (Jsonb(error), job.note_id),
+            )
+
     def complete(self, job: Job):
         with self._active(job) as conn:
             self._finish(conn, job, "done", None)
@@ -188,6 +201,11 @@ class JobsRepository:
                 if eligible and row["kind"] == "process":
                     conn.execute(
                         "UPDATE notes SET processing_status='queued' WHERE id=%s",
+                        (row["note_id"],),
+                    )
+                if eligible and row["kind"] == "extract":
+                    conn.execute(
+                        "UPDATE notes SET ingestion_status='queued' WHERE id=%s",
                         (row["note_id"],),
                     )
                 count += 1
@@ -246,6 +264,12 @@ class JobsRepository:
         if row["kind"] == "process":
             conn.execute(
                 """UPDATE notes SET processing_status='queued', processing_error=NULL,
+                   updated_at=clock_timestamp() WHERE id=%s""",
+                (row["note_id"],),
+            )
+        if row["kind"] == "extract":
+            conn.execute(
+                """UPDATE notes SET ingestion_status='queued', ingestion_error=NULL,
                    updated_at=clock_timestamp() WHERE id=%s""",
                 (row["note_id"],),
             )

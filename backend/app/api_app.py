@@ -11,12 +11,15 @@ from psycopg_pool import PoolTimeout
 from starlette.exceptions import HTTPException
 
 from app.api.chat import router as chat_router
+from app.api.file_import import router as file_router
 from app.api.note_crud import router
 from app.api.search import router as search_router
 from app.config import Settings
 from app.dto import ErrorResponse
+from app.errors import ProcessingError
 from app.postgres import Database
 from app.services.chat import ChatError, ChatService
+from app.services.file_import import FileImportService
 from app.services.notes import NoteError, NotesService
 from app.services.search import SearchError, SearchService
 
@@ -27,12 +30,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app):
         database = Database(settings.database_url) if settings.database_url else None
+        app.state.files = None
         app.state.notes = None
         app.state.search = None
         app.state.chat = None
         try:
             if database is not None:
                 database.open()
+                app.state.files = FileImportService(database, settings)
                 app.state.notes = NotesService(
                     database, processing_enabled=settings.processing_enabled
                 )
@@ -61,11 +66,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def note_error(request: Request, exc: NoteError):
         status = {
             "note_not_found": 404,
+            "attachment_not_found": 404,
             "note_not_ready": 409,
             "retry_not_available": 409,
             "database_unavailable": 503,
         }
         return error(status.get(exc.code, 500), exc.code, exc.message)
+
+    @app.exception_handler(ProcessingError)
+    async def import_error(request: Request, exc: ProcessingError):
+        return error(413 if exc.code == "file_too_large" else 422, exc.code, exc.message)
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
@@ -84,6 +94,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def unexpected_error(request: Request, exc: Exception):
         return error(500, "internal_error", "Внутренняя ошибка сервера.")
 
+    app.include_router(file_router)
     app.include_router(router)
     app.include_router(search_router)
     app.include_router(chat_router)

@@ -14,6 +14,13 @@ class NotesRepository:
             (title, text, explicit),
         ).fetchone()["id"]
 
+    def create_file(self, title, explicit):
+        return self.conn.execute(
+            """INSERT INTO notes(title, title_is_explicit, ingestion_status)
+               VALUES (%s,%s,'queued') RETURNING id""",
+            (title, explicit),
+        ).fetchone()["id"]
+
     def lock(self, note_id):
         return self.conn.execute(
             "SELECT * FROM notes WHERE id = %s FOR UPDATE", (note_id,)
