@@ -5,6 +5,7 @@ import os
 import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
 
 import psycopg
 from psycopg.rows import dict_row
@@ -13,6 +14,7 @@ from app.cleanup import CleanupHandler
 from app.config import Settings
 from app.enrichment import EnrichmentResult, EnrichmentSettings, build_enrichment
 from app.extraction import ExtractHandler, publish_extract
+from app.graph_settings import GraphSettings
 from app.job_runner.worker import HandlerBinding
 from app.model_clients.contracts import Embedder, TextGenerator
 from app.model_clients.embeddings import OllamaEmbedder
@@ -126,9 +128,9 @@ class ProcessHandler:
             )
 
 
-def publish_process(conn, job, result):
+def publish_process(conn, job, result, *, graph: GraphSettings = GraphSettings()):
     if isinstance(result, IndexResult):
-        IndexRepository.publish(conn, job, result)
+        IndexRepository.publish(conn, job, result, graph=graph)
     elif isinstance(result, EnrichmentResult):
         EnrichmentRepository.publish(conn, job, result)
     else:
@@ -150,7 +152,7 @@ def handlers():
                 ChunkSettings.from_env(),
                 enrichment=EnrichmentSettings.from_env(),
             ),
-            publish_process,
+            partial(publish_process, graph=GraphSettings.from_env()),
         ),
         "cleanup": HandlerBinding(
             CleanupHandler(database_url, Settings.from_env().data_dir),

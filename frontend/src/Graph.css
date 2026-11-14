@@ -1,0 +1,25 @@
+.note-graph-canvas {
+  width: 100%;
+  height: clamp(20rem, 56vh, 36rem);
+  border: 1px solid #d4e0e4;
+  border-radius: 0.75rem;
+  background: #f8fbfc;
+}
+
+.note-graph-notes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  list-style: none;
+  padding: 0;
+}
+
+.note-graph-notes li {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.note-graph-notes button {
+  overflow-wrap: anywhere;
+  text-align: left;
+}

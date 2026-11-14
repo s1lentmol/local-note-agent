@@ -2,6 +2,9 @@
 
 from dataclasses import dataclass
 
+from app.graph_settings import GraphSettings
+from app.repositories.graph import GraphRepository
+
 
 @dataclass(frozen=True)
 class SpaceProfile:
@@ -50,7 +53,7 @@ class IndexRepository:
             raise ValueError("Embedding space profile mismatch")
 
     @staticmethod
-    def publish(conn, job, result: IndexResult):
+    def publish(conn, job, result: IndexResult, *, graph: GraphSettings = GraphSettings()):
         # T06 already holds note then job locks. Serialize against profile changes
         # BEFORE deleting old chunks, and retain the lock until the transaction ends.
         IndexRepository.check_profile(conn, result.profile, lock=True)
@@ -66,3 +69,4 @@ class IndexRepository:
                     for pos, (text, vector) in enumerate(zip(result.chunks, result.vectors))
                 ],
             )
+        GraphRepository.replace_links(conn, job.note_id, graph)
