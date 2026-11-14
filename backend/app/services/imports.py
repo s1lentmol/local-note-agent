@@ -18,7 +18,6 @@ from app.services.notes import NoteError
 MAX_FILES = 20
 MAX_TELEGRAM_FILES = 10
 MAX_BATCH_BYTES = 10 * 1024 * 1024
-FILE_FIELDS = FileImportFields(source_type="text_file")
 
 
 @dataclass
@@ -28,6 +27,7 @@ class ImportFile:
     stream: BinaryIO | None = None
     delivery: TelegramDelivery | None = None
     error: ProcessingError | None = None
+    source_type: str = "text_file"
 
     @property
     def delivery_id(self):
@@ -86,8 +86,15 @@ class ImportsService:
         file_limit = MAX_FILES if scope is None else MAX_TELEGRAM_FILES
         if not 1 <= len(inputs) <= file_limit:
             raise ProcessingError("invalid_file_count", f"Загрузите от 1 до {file_limit} файлов.")
-        if sum(entry.size for entry in inputs) > MAX_BATCH_BYTES:
-            raise ProcessingError("batch_too_large", "Общий размер файлов превышает 10 МиБ.")
+        if sum(entry.size for entry in inputs if entry.source_type != "audio") > MAX_BATCH_BYTES:
+            raise ProcessingError("batch_too_large", "Общий размер неаудиофайлов превышает 10 МиБ.")
+        if (
+            sum(entry.size for entry in inputs if entry.source_type == "audio")
+            > self.files.settings.audio_max_bytes
+        ):
+            raise ProcessingError(
+                "batch_too_large", "Общий размер аудиофайлов превышает лимит аудио."
+            )
         with ExitStack() as stack:
             staged = []
             for entry in inputs:
@@ -142,7 +149,8 @@ class ImportsService:
         if entry.error is not None:
             return None, entry.error.as_dict()
         try:
-            original = stack.enter_context(self.files.stage(entry.stream, entry.name, FILE_FIELDS))
+            fields = FileImportFields(source_type=entry.source_type)
+            original = stack.enter_context(self.files.stage(entry.stream, entry.name, fields))
             return original, None
         except ProcessingError as exc:
             return None, exc.as_dict()

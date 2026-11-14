@@ -13,11 +13,38 @@ from app.repositories.sources import SourcesRepository
 from app.services.notes import NoteError, NotesService
 from app.services.storage import Storage
 
+TEXT_SUFFIXES = {".txt", ".md", ".markdown"}
+AUDIO_SUFFIXES = {".ogg", ".oga", ".opus", ".wav", ".mp3"}
+AUDIO_MIME_TYPES = {
+    "audio/ogg",
+    "application/ogg",
+    "audio/opus",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+    "audio/vnd.wave",
+    "audio/mpeg",
+    "audio/mp3",
+}
+
+
+def infer_source_type(filename, mime=None):
+    # Names and MIME route the upload; the extract worker validates the bytes.
+    suffix = Path(filename or "").suffix.lower()
+    if suffix not in TEXT_SUFFIXES and (
+        suffix in AUDIO_SUFFIXES
+        or (mime or "").partition(";")[0].strip().lower() in AUDIO_MIME_TYPES
+    ):
+        return "audio"
+    return "text_file"
+
 
 def text_filename(filename):
     name = filename or ""
-    if not name or "\x00" in name or Path(name).suffix.lower() not in {".txt", ".md", ".markdown"}:
-        raise ProcessingError("unsupported_format", "Поддерживаются только TXT и Markdown.")
+    if not name or "\x00" in name or Path(name).suffix.lower() not in TEXT_SUFFIXES:
+        raise ProcessingError(
+            "unsupported_format", "Поддерживаются TXT, Markdown, OGG/Opus, WAV и MP3."
+        )
     return name
 
 
@@ -30,6 +57,7 @@ class StoredFile:
     key: str
     mime: str
     size: int
+    source_type: str
     committed: bool = False
 
 
@@ -46,20 +74,36 @@ class FileImportService:
             original.committed = True
             return result
 
+    def max_bytes(self, source_type):
+        if source_type == "audio":
+            return self.settings.audio_max_bytes
+        return self.settings.text_file_max_bytes
+
     @contextmanager
     def stage(self, stream, filename, fields: FileImportFields):
         fields = FileImportFields.model_validate(fields)
-        if fields.source_type != "text_file":
-            raise ProcessingError("unsupported_format", "Поддерживаются только TXT и Markdown.")
-        name = text_filename(filename)
+        source_type = fields.source_type
+        if source_type == "text_file":
+            name = text_filename(filename)
+            mime = "text/plain" if Path(name).suffix.lower() == ".txt" else "text/markdown"
+        elif source_type == "audio":
+            name = filename or "Аудиозапись"
+            mime = "application/octet-stream"
+        else:
+            raise ProcessingError(
+                "unsupported_format", "Поддерживаются TXT, Markdown, OGG/Opus, WAV и MP3."
+            )
+        if "\x00" in name:
+            raise ProcessingError("invalid_filename", "Некорректное имя файла.")
         title = fields.title or name.replace("\\", "/").rsplit("/", 1)[-1].strip()[:200]
         if not title or "\x00" in title:
             raise ProcessingError("invalid_title", "Некорректный заголовок.")
         attachment_id = uuid4()
         storage = Storage(self.settings.data_dir)
-        key, size = storage.save(stream, str(attachment_id), self.settings.text_file_max_bytes)
-        mime = "text/plain" if Path(name).suffix.lower() == ".txt" else "text/markdown"
-        original = StoredFile(attachment_id, name, title, fields.title is not None, key, mime, size)
+        key, size = storage.save(stream, str(attachment_id), self.max_bytes(source_type))
+        original = StoredFile(
+            attachment_id, name, title, fields.title is not None, key, mime, size, source_type
+        )
         try:
             yield original
         finally:
@@ -71,9 +115,9 @@ class FileImportService:
         note_id = NotesRepository(conn).create_file(original.title, original.explicit)
         sources = SourcesRepository(conn)
         source_id = (
-            sources.create_file(note_id)
+            sources.create_file(note_id, original.source_type)
             if delivery is None
-            else sources.create_telegram_file(note_id, delivery)
+            else sources.create_telegram_file(note_id, delivery, original.source_type)
         )
         AttachmentsRepository(conn).create(
             original.id, source_id, original.name, original.key, original.mime, original.size

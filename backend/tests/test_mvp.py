@@ -350,7 +350,7 @@ def test_readiness_and_cors(system):
         headers={"Origin": "http://localhost:5173", "Access-Control-Request-Method": "POST"},
     )
     assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
-    assert client.get("/api/v1/capabilities").json()["max_audio_seconds"] == 600
+    assert client.get("/api/v1/capabilities").json()["max_audio_seconds"] == 1800
 
 
 def test_body_limit_checks_actual_stream(tmp_path):

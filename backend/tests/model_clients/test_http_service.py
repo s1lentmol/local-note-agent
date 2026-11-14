@@ -39,3 +39,32 @@ def test_real_http_boundary(tmp_path):
         server.shutdown()
         thread.join(timeout=3)
         server.server_close()
+
+
+@pytest.mark.parametrize(
+    "code,expected",
+    [
+        ("empty_asr_result", "empty_asr_result"),
+        ("invalid_audio_duration", "invalid_audio_duration"),
+        ("invalid_audio_format", "invalid_audio_format"),
+        ("private provider output", "http_422"),
+    ],
+)
+def test_asr_domain_errors(tmp_path, code, expected):
+    class Failed:
+        def transcribe(self, path):
+            raise ModelClientError(code)
+
+    with HTTPServer(("127.0.0.1", 0), handler_for(Failed())) as server:
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            path = tmp_path / "audio"
+            path.write_bytes(b"x")
+            settings = ASRSettings(base_url=f"http://127.0.0.1:{server.server_port}")
+            with pytest.raises(ModelClientError) as exc:
+                HTTPTranscriber(settings).transcribe(path)
+            assert exc.value.code == expected
+        finally:
+            server.shutdown()
+            thread.join(timeout=3)

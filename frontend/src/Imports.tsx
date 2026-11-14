@@ -5,7 +5,6 @@ import { useOperationScope } from "./useOperationScope";
 import { useResource } from "./useResource";
 
 const maxFiles = 20;
-const maxBytes = 10 * 1024 * 1024;
 const statuses: Record<ImportStatus, string> = {
   queued: "В очереди",
   processing: "Извлечение текста",
@@ -25,13 +24,8 @@ export function Upload() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const files = form.getAll("files") as File[];
-    if (
-      files.length > maxFiles ||
-      files.reduce((sum, file) => sum + file.size, 0) > maxBytes
-    ) {
-      setError(
-        new Error("Можно загрузить до 20 файлов общим размером до 10 МиБ."),
-      );
+    if (files.length > maxFiles) {
+      setError(new Error(`Можно загрузить до ${maxFiles} файлов.`));
       return;
     }
     if (destination && destination !== "new")
@@ -61,12 +55,12 @@ export function Upload() {
               name="files"
               multiple
               required
-              accept=".txt,.md,.markdown"
+              accept=".txt,.md,.markdown,.ogg,.oga,.opus,.wav,.mp3"
             />
           </label>
           <p className="muted">
-            TXT и Markdown в UTF-8. До 20 файлов, до 1 МиБ каждый и 10 МиБ
-            всего.
+            До 20 файлов. TXT и Markdown в UTF-8 — до 1 МиБ на файл и 10 МиБ всего.
+            OGG/Opus, WAV и MP3 — по умолчанию до 50 МиБ аудио суммарно и 30 минут на запись.
           </p>
           <label>
             Подборка

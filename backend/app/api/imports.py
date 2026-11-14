@@ -10,6 +10,7 @@ from starlette.formparsers import MultiPartException, MultiPartParser
 
 from app.dto import BatchImportFields, ImportAccepted, ImportDetail
 from app.errors import ProcessingError
+from app.services.file_import import infer_source_type
 from app.services.imports import MAX_BATCH_BYTES, MAX_FILES, ImportFile
 from app.services.notes import NoteError
 
@@ -31,11 +32,11 @@ def import_service(request):
     return service
 
 
-async def bounded_body(request):
+async def bounded_body(request, audio_max_bytes):
     total = 0
     async for chunk in request.stream():
         total += len(chunk)
-        if total > MAX_BODY_BYTES:
+        if total > MAX_BODY_BYTES + audio_max_bytes:
             raise ProcessingError("batch_too_large", "Запрос импорта превышает допустимый размер.")
         yield chunk
 
@@ -75,7 +76,7 @@ async def accept(request: Request):
         raise ProcessingError("invalid_upload", "Отправьте файлы в формате multipart/form-data.")
     parser = BatchMultipartParser(
         request.headers,
-        bounded_body(request),
+        bounded_body(request, service.files.settings.audio_max_bytes),
         max_files=MAX_FILES,
         max_fields=2,
         max_part_size=2048,
@@ -93,7 +94,10 @@ async def accept(request: Request):
         values = {}
         for key, value in form.multi_items():
             if key == "files" and isinstance(value, UploadFile):
-                inputs.append(ImportFile(value.filename, value.size, value.file))
+                source_type = infer_source_type(value.filename, value.content_type)
+                inputs.append(
+                    ImportFile(value.filename, value.size, value.file, source_type=source_type)
+                )
             elif (
                 key in {"collection_id", "collection_title"}
                 and key not in values

@@ -980,6 +980,7 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiogram" },
+    { name = "av" },
     { name = "fastapi" },
     { name = "pgvector" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -991,7 +992,6 @@ dependencies = [
 [package.optional-dependencies]
 prototype = [
     { name = "alembic" },
-    { name = "av" },
     { name = "certifi" },
     { name = "faster-whisper" },
     { name = "pillow" },
@@ -1013,7 +1013,7 @@ dev = [
 requires-dist = [
     { name = "aiogram", specifier = ">=3.13,<4" },
     { name = "alembic", marker = "extra == 'prototype'", specifier = ">=1.13,<2" },
-    { name = "av", marker = "extra == 'prototype'", specifier = ">=14,<19" },
+    { name = "av", specifier = ">=14,<19" },
     { name = "certifi", marker = "extra == 'prototype'", specifier = ">=2025.1.31" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "faster-whisper", marker = "extra == 'prototype'", specifier = ">=1.2,<2" },

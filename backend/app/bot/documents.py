@@ -1,31 +1,45 @@
-"""Bounded Telegram document collection within the polling process."""
+"""Bounded Telegram file collection within the polling process."""
 
 import asyncio
 from contextlib import ExitStack
 from dataclasses import dataclass, field
-from io import BytesIO
+from tempfile import SpooledTemporaryFile
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, Update
 
 from app.errors import ProcessingError
 from app.repositories.sources import TelegramDelivery
-from app.services.file_import import text_filename
+from app.services.file_import import infer_source_type, text_filename
 from app.services.imports import MAX_TELEGRAM_FILES, ImportFile
 
 GROUP_WINDOW_SECONDS = 1.0
 MAX_PENDING_GROUPS = 16
 DOWNLOAD_TIMEOUT_SECONDS = 15
+# The hosted Telegram Bot API limits getFile independently of our upload settings.
+TELEGRAM_MAX_BYTES = 20 * 1024 * 1024
 
 
-class DocumentBuffer(BytesIO):
-    def __init__(self, limit):
-        super().__init__()
-        self.limit = limit
+def telegram_size_error():
+    return ProcessingError(
+        "telegram_file_too_large", "Telegram Bot API не позволяет скачать файл больше 20 МБ."
+    )
+
+
+class DownloadBuffer(SpooledTemporaryFile):
+    def __init__(self, application_limit):
+        super().__init__(max_size=1024 * 1024, mode="w+b")
+        self.application_limit = application_limit
+
+    def check_size(self, size):
+        if size > self.application_limit:
+            raise ProcessingError("file_too_large", "Файл превышает допустимый размер.")
+        if size > TELEGRAM_MAX_BYTES:
+            raise telegram_size_error()
 
     def write(self, data):
-        if self.tell() + len(data) > self.limit:
-            raise ProcessingError("file_too_large", "Файл превышает допустимый размер.")
+        self.check_size(self.tell() + len(data))
         return super().write(data)
 
 
@@ -114,6 +128,13 @@ class TelegramDocuments:
                         self.imports.accept_telegram, inputs, scope, external_id
                     )
             reply = f"Импорт файлов принят: {batch_id}. Результаты доступны в разделе «Загрузка»."
+            if external_id.startswith("update:"):
+                batch = await self.run_sync(self.imports.get, batch_id)
+                item = batch.items[0]
+                if item.note_id is None and item.error is not None:
+                    reply = f"{item.error.message} Пачка: {batch_id}."
+        except ProcessingError as exc:
+            reply = exc.message
         except Exception:
             reply = "Не удалось принять файлы. Отправьте их повторно."
         try:
@@ -123,30 +144,72 @@ class TelegramDocuments:
             pass
 
     async def _download(self, stack, bot, update_id, message):
-        document = message.document
+        media = message.voice or message.audio or message.document
+        name = getattr(media, "file_name", None)
+        mime = media.mime_type
+        metadata = {}
+        if message.media_group_id:
+            metadata["media_group_id"] = message.media_group_id
+        if message.forward_origin is not None:
+            metadata["forward_origin"] = message.forward_origin.model_dump(
+                mode="json", exclude_none=True
+            )
+        if message.is_automatic_forward is not None:
+            metadata["is_automatic_forward"] = message.is_automatic_forward
+        source_type = infer_source_type(name, mime)
+        if message.voice is not None or message.audio is not None:
+            source_type = "audio"
+            name = name or ("voice.ogg" if message.voice is not None else "Аудиозапись")
+        if source_type == "audio":
+            metadata["telegram_media_type"] = (
+                "voice" if message.voice else "audio" if message.audio else "document"
+            )
+            if mime is not None:
+                metadata["telegram_mime_type"] = mime
         delivery = TelegramDelivery(
             bot_id=bot.id,
             update_id=update_id,
             chat_id=message.chat.id,
             message_id=message.message_id,
-            metadata={"media_group_id": message.media_group_id} if message.media_group_id else {},
+            metadata=metadata,
         )
-        name = document.file_name
-        result = ImportFile(name, 0, delivery=delivery)
-        limit = self.imports.files.settings.text_file_max_bytes
+        result = ImportFile(name, 0, delivery=delivery, source_type=source_type)
+        limit = self.imports.files.max_bytes(source_type)
         try:
-            text_filename(name)
-            if document.file_size is not None and document.file_size > limit:
-                raise ProcessingError("file_too_large", "Файл превышает допустимый размер.")
-            stream = stack.enter_context(DocumentBuffer(limit))
-            await asyncio.wait_for(
-                bot.download(document, destination=stream, timeout=DOWNLOAD_TIMEOUT_SECONDS),
-                DOWNLOAD_TIMEOUT_SECONDS,
-            )
+            if source_type == "text_file":
+                text_filename(name)
+            stream = stack.enter_context(DownloadBuffer(limit))
+            stream.check_size(media.file_size or 0)
+            async with asyncio.timeout(DOWNLOAD_TIMEOUT_SECONDS):
+                remote = await bot.get_file(media.file_id)
+                stream.check_size(remote.file_size or 0)
+                if not remote.file_path:
+                    raise ProcessingError(
+                        "telegram_download_failed", "Не удалось скачать файл из Telegram."
+                    )
+                await bot.download_file(
+                    remote.file_path,
+                    destination=stream,
+                    timeout=DOWNLOAD_TIMEOUT_SECONDS,
+                    seek=False,
+                )
+            result.size = stream.tell()
+            if remote.file_size is not None and remote.file_size != result.size:
+                raise ProcessingError("telegram_download_failed", "Telegram вернул неполный файл.")
+            stream.seek(0)
             result.stream = stream
-            result.size = stream.getbuffer().nbytes
         except ProcessingError as exc:
             result.error = exc
+            result.size = 0
+        except TelegramBadRequest as exc:
+            if "file is too big" in exc.message.lower():
+                result.error = telegram_size_error()
+            else:
+                result.error = ProcessingError(
+                    "telegram_download_failed", "Не удалось скачать файл из Telegram."
+                )
         except Exception:
-            result.error = ProcessingError("telegram_download_failed", "Не удалось скачать файл.")
+            result.error = ProcessingError(
+                "telegram_download_failed", "Не удалось скачать файл из Telegram."
+            )
         return result

@@ -13,7 +13,7 @@ class Settings(BaseModel):
     html_max_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
     text_file_max_bytes: int = Field(default=1024 * 1024, gt=0, le=1024 * 1024)
     text_max_chars: int = Field(default=100_000, gt=0, le=100_000)
-    audio_max_seconds: int = Field(default=600, gt=0)
+    audio_max_seconds: int = Field(default=30 * 60, gt=0)
     image_max_pixels: int = Field(default=25_000_000, gt=0)
     job_timeout_seconds: int = Field(default=900, gt=0)
     web_timeout_seconds: int = Field(default=20, gt=0)

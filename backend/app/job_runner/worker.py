@@ -17,9 +17,12 @@ from multiprocessing.connection import Connection
 from typing import Any
 
 from app.errors import ProcessingError
+from app.extractors.audio import AUDIO_ERRORS
 from app.extractors.text import TEXT_ERRORS
 from app.job_runner.settings import WorkerSettings
 from app.jobs_repository import Job, JobsRepository, Publication, StaleJob
+
+EXTRACT_ERRORS = TEXT_ERRORS | AUDIO_ERRORS
 
 
 class HandlerContext:
@@ -48,7 +51,7 @@ def _compute(handler, job, channel):
         channel.send(("done", None))
     except ProcessingError as exc:
         # Fixed allowlist only: exception messages and arbitrary codes never escape.
-        code = exc.code if job.kind == "extract" and exc.code in TEXT_ERRORS else None
+        code = exc.code if job.kind == "extract" and exc.code in EXTRACT_ERRORS else None
         channel.send(("error", code))
     except BaseException:
         # Do not persist handler exceptions, inputs, credentials or provider bodies.
@@ -140,8 +143,8 @@ class Worker:
                         if not completed:
                             self.repository.complete(job)
                         break
-                    elif event == "error" and job.kind == "extract" and payload in TEXT_ERRORS:
-                        self._fail(job, payload, TEXT_ERRORS[payload])
+                    elif event == "error" and job.kind == "extract" and payload in EXTRACT_ERRORS:
+                        self._fail(job, payload, EXTRACT_ERRORS[payload])
                         break
                     else:
                         self._fail(job, "handler_failed", "Job handler failed")

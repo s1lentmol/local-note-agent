@@ -8,6 +8,16 @@ import urllib.request
 
 from .contracts import ModelClientError
 
+# The native T07 endpoint groups its domain failures under HTTP 422.
+ASR_ERROR_CODES = {
+    "invalid_audio_format",
+    "invalid_audio_data",
+    "invalid_audio_duration",
+    "empty_asr_result",
+    "asr_runtime_timeout",
+    "asr_runtime_unavailable",
+}
+
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
@@ -37,7 +47,14 @@ class HTTPTransport:
                     raise ModelClientError("response_too_large")
                 return json.loads(raw)
         except urllib.error.HTTPError as exc:
-            exc.close()
+            with exc:
+                if audio is not None and exc.code == 422:
+                    try:
+                        code = json.loads(exc.read(1024)).get("error")
+                    except (AttributeError, ValueError, OSError, http.client.HTTPException):
+                        code = None
+                    if isinstance(code, str) and code in ASR_ERROR_CODES:
+                        raise ModelClientError(code) from None
             raise ModelClientError(f"http_{exc.code}") from None
         except (TimeoutError, socket.timeout):
             raise ModelClientError("timeout") from None

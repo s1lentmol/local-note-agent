@@ -20,10 +20,10 @@ class AttachmentsRepository:
             (attachment_id,),
         ).fetchone()
 
-    def text_original(self, note_id):
+    def extract_original(self, note_id):
         return self.conn.execute(
-            """SELECT a.storage_key FROM attachments a JOIN sources s ON s.id=a.source_id
+            """SELECT a.storage_key, s.type FROM attachments a JOIN sources s ON s.id=a.source_id
                JOIN notes n ON n.id=s.note_id
-               WHERE s.note_id=%s AND s.type='text_file' AND n.deleted_at IS NULL""",
+               WHERE s.note_id=%s AND s.type IN ('text_file', 'audio') AND n.deleted_at IS NULL""",
             (note_id,),
         ).fetchone()

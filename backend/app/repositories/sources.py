@@ -22,10 +22,10 @@ class SourcesRepository:
     def __init__(self, conn):
         self.conn = conn
 
-    def create_file(self, note_id):
+    def create_file(self, note_id, source_type):
         return self.conn.execute(
-            "INSERT INTO sources(note_id,type) VALUES (%s,'text_file') RETURNING id",
-            (note_id,),
+            "INSERT INTO sources(note_id,type) VALUES (%s,%s) RETURNING id",
+            (note_id, source_type),
         ).fetchone()["id"]
 
     def create_text(self, note_id, text):
@@ -37,8 +37,15 @@ class SourcesRepository:
     def create_telegram_text(self, note_id, text, delivery: TelegramDelivery):
         self._create_telegram(note_id, "text", text, delivery)
 
-    def create_telegram_file(self, note_id, delivery: TelegramDelivery):
-        return self._create_telegram(note_id, "text_file", None, delivery)
+    def create_telegram_file(self, note_id, delivery: TelegramDelivery, source_type):
+        return self._create_telegram(note_id, source_type, None, delivery)
+
+    def set_language(self, note_id, language):
+        self.conn.execute(
+            """UPDATE sources SET metadata=metadata || jsonb_build_object('language', %s::text)
+               WHERE note_id=%s AND type='audio'""",
+            (language, note_id),
+        )
 
     def _create_telegram(self, note_id, source_type, text, delivery):
         row = self.conn.execute(

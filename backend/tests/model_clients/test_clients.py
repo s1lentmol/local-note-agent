@@ -199,7 +199,8 @@ def test_embedding_model_mismatch():
 def test_invalid_asr(tmp_path, raw):
     path = tmp_path / "a.ogg"
     path.write_bytes(b"audio")
-    with pytest.raises(ModelClientError, match="invalid_transcript"):
+    expected = "empty_asr_result" if raw.get("text") in {"", "  "} else "invalid_transcript"
+    with pytest.raises(ModelClientError, match=expected):
         HTTPTranscriber(ASRSettings(), Transport(raw)).transcribe(path)
 
 

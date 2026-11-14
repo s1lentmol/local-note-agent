@@ -80,6 +80,6 @@ def create_dispatcher(
     if imports is not None:
         options = {"window": group_window} if group_window is not None else {}
         documents = TelegramDocuments(imports, run_sync, **options)
-        dispatcher.message.register(documents.document, F.document)
+        dispatcher.message.register(documents.document, F.document | F.voice | F.audio)
         dispatcher.shutdown.register(documents.close)
     return dispatcher

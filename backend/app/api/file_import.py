@@ -44,7 +44,7 @@ async def single_upload(request: Request):
 def import_note(
     service: Service,
     file: Annotated[UploadFile, File()],
-    source_type: Annotated[Literal["text_file"], Form()],
+    source_type: Annotated[Literal["text_file", "audio"], Form()],
     title: Annotated[str | None, Form(max_length=200, min_length=1)] = None,
 ):
     # FileImportFields also rejects whitespace-only titles.

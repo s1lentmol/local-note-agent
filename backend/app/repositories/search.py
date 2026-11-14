@@ -32,6 +32,7 @@ class SearchRepository:
                        FROM filtered f JOIN chunks c ON c.note_id=f.id
                        WHERE c.embedding_profile_id=true GROUP BY f.id
                        ORDER BY relevance DESC, f.id LIMIT %(dense_candidates)s"""
+        # Materialize TOASTed text before slicing its multibyte preview (PG bug #19406).
         return conn.execute(
             """WITH filtered AS NOT MATERIALIZED (
                 SELECT n.id, n.title, n.extracted_text, n.search_ru, n.search_en
@@ -64,7 +65,7 @@ class SearchRepository:
                 SELECT id, sum(score)::double precision AS score FROM ranks GROUP BY id
             )
             SELECT f.id AS note_id, f.title,
-                   left(coalesce(f.extracted_text, ''), %(preview_chars)s) AS preview, r.score
+                   left(coalesce(f.extracted_text, '') || '', %(preview_chars)s) AS preview, r.score
             FROM fused r JOIN filtered f ON f.id=r.id
             ORDER BY r.score DESC, f.id LIMIT %(limit)s""",
             params,

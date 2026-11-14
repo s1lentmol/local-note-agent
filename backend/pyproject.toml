@@ -15,6 +15,7 @@ dependencies = [
     "pgvector>=0.4,<1",
     "aiogram>=3.13,<4",
     "python-multipart>=0.0.20,<1",
+    "av>=14,<19",
 ]
 
 [project.optional-dependencies]
@@ -27,7 +28,6 @@ prototype = [
     "Pillow>=11,<13",
     "pytesseract>=0.3.13,<1",
     "faster-whisper>=1.2,<2",
-    "av>=14,<19",
 ]
 
 

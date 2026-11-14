@@ -255,11 +255,11 @@ def test_rollback_compensates_originals_and_isolates_item(client, test_settings,
 
         return checked
 
-    def fail_on_first(self, note_id):
+    def fail_on_first(self, note_id, source_type):
         saves.append(note_id)
         if len(saves) == 1:
             raise RuntimeError("synthetic file insert error")
-        return original_create(self, note_id)
+        return original_create(self, note_id, source_type)
 
     def fail_item(*args):
         raise RuntimeError("synthetic batch persistence failure")
