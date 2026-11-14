@@ -1,3 +1,10 @@
+.note-graph-filter {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 24rem;
+  margin-bottom: 1rem;
+}
+
 .note-graph-canvas {
   width: 100%;
   height: clamp(20rem, 56vh, 36rem);

@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException
 from app.api.chat import router as chat_router
 from app.api.collections import router as collection_router
 from app.api.file_import import router as file_router
+from app.api.graph import router as graph_router
 from app.api.imports import router as import_router
 from app.api.note_crud import router
 from app.api.search import router as search_router
@@ -23,6 +24,7 @@ from app.postgres import Database
 from app.services.chat import ChatError, ChatService
 from app.services.collections import CollectionsService
 from app.services.file_import import FileImportService
+from app.services.graph import GraphService
 from app.services.imports import ImportsService
 from app.services.notes import NoteError, NotesService
 from app.services.search import SearchError, SearchService
@@ -38,6 +40,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.imports = None
         app.state.collections = None
         app.state.notes = None
+        app.state.graph = None
         app.state.search = None
         app.state.chat = None
         try:
@@ -49,6 +52,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.notes = NotesService(
                     database, processing_enabled=settings.processing_enabled
                 )
+                app.state.graph = GraphService(database)
                 app.state.search = SearchService(database)
                 app.state.chat = ChatService.from_env(database, app.state.notes, app.state.search)
             yield
@@ -112,6 +116,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(router)
     app.include_router(search_router)
     app.include_router(chat_router)
+    app.include_router(graph_router)
     app.state.settings = settings
     app.add_middleware(
         CORSMiddleware,

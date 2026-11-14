@@ -8,7 +8,6 @@ from uuid import uuid4
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.graph import router
 from app.api_app import create_app
 from app.config import Settings
 from app.dto import GraphQuery, NotePatch, TextNoteCreate
@@ -26,6 +25,7 @@ from app.repositories.notes import NotesRepository
 from app.services.graph import GraphService
 from app.services.notes import NotesService
 from app.services.processing import enqueue_process
+from app.services.processing import main as enqueue_existing
 from tests.enrichment_fixtures import GeneratorFactory
 from tests.indexing_fixtures import FixtureEmbedder, unit_vector
 
@@ -260,21 +260,55 @@ def test_failed_enrichment_keeps_graph(system, db, database_url):
     assert links(db) == [(*sorted((current, neighbor)), 1.0, CALCULATION_SOURCE)]
 
 
-def test_standalone_http_router(system, database_url):
+def test_production_graph_for_existing_corpus(system, db, database_url, monkeypatch, capsys):
     notes, jobs = system
-    a = create(notes, "A")
+    a = create(notes, "Mars A")
     put(jobs, a, unit_vector())
-    b = create(notes, "B")
+    b = create(notes, "Mars B")
     put(jobs, b, unit_vector())
-    app = create_app(Settings(database_url=database_url))
-    app.include_router(router)
-    with TestClient(app) as client:
-        assert client.get("/api/v1/graph").status_code == 503
-        app.state.graph = GraphService(jobs.database)
-        response = client.get("/api/v1/graph", params={"note_id": str(a), "limit": 2})
+    # Simulate a corpus indexed before T17, then run the documented scheduler.
+    db.execute("DELETE FROM note_links")
+    monkeypatch.setenv("NOTE_AGENT_DATABASE_URL", database_url)
+    monkeypatch.setattr("sys.argv", ["app.services.processing"])
+    with TestClient(create_app(Settings(database_url=database_url))) as client:
+        graph_url = "/api/v1/graph"
+        assert client.get(graph_url).json() == {"nodes": [], "edges": []}
+        assert db.execute("SELECT count(*) FROM jobs").fetchone()[0] == 2
+        enqueue_existing()
+        assert capsys.readouterr().out.strip() == "Queued: 2"
+        compute = ProcessHandler(
+            database_url, EmbeddingSettings(), ChunkSettings(), FixtureEmbedder
+        )
+        worker = Worker(jobs, {"process": HandlerBinding(compute, publish_process)})
+        assert worker.run_once() and worker.run_once()
+
+        collection = client.post("/api/v1/collections", json={"title": "Mars"})
+        assert collection.status_code == 201
+        collection_id = collection.json()["id"]
+        members_url = f"/api/v1/collections/{collection_id}/notes"
+        assert client.post(members_url, json={"note_ids": [str(a)]}).status_code == 204
+        params = {"note_id": str(a), "limit": 2, "collection_id": collection_id}
+        response = client.get(graph_url, params=params)
+        assert response.status_code == 200, response.text
+        assert [n["id"] for n in response.json()["nodes"]] == [str(a)]
+        assert response.json()["edges"] == []
+
+        assert client.post(members_url, json={"note_ids": [str(b)]}).status_code == 204
+        response = client.get(graph_url, params=params)
         assert response.status_code == 200, response.text
         body = response.json()
         assert [n["id"] for n in body["nodes"]] == [str(a), str(b)]
         assert len(body["edges"]) == 1
+        for node in body["nodes"]:
+            detail = client.get(f"/api/v1/notes/{node['id']}")
+            assert detail.status_code == 200
+            assert detail.json()["title"] == node["title"]
         for params in ({"note_id": "bad"}, {"collection_id": "bad"}, {"limit": 0}, {"limit": 101}):
-            assert client.get("/api/v1/graph", params=params).status_code == 422
+            assert client.get(graph_url, params=params).status_code == 422
+
+
+def test_production_graph_without_database():
+    with TestClient(create_app(Settings(database_url=""))) as client:
+        response = client.get("/api/v1/graph")
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "database_unavailable"

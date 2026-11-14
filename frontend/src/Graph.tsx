@@ -1,35 +1,26 @@
 import cytoscape from "cytoscape";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { api } from "./api";
+import { ErrorBox } from "./ErrorBox";
 import { useResource } from "./useResource";
 import "./Graph.css";
 
-export interface GraphQuery {
-  note_id?: string;
-  collection_id?: string;
-  limit: number;
-}
-
-export interface GraphResponse {
-  nodes: { id: string; title: string }[];
-  edges: { source: string; target: string; score: number }[];
-}
-
 interface GraphProps {
   noteId?: string;
-  collectionId?: string;
-  load: (query: GraphQuery, signal: AbortSignal) => Promise<GraphResponse>;
   onOpenNote: (id: string) => void;
 }
 
 const limit = 20;
 
-export function Graph({ noteId, collectionId, load, onOpenNote }: GraphProps) {
+export function Graph({ noteId, onOpenNote }: GraphProps) {
+  const [collectionId, setCollectionId] = useState("");
+  const collections = useResource("collections", api.collections, () => false);
   const canvas = useRef<HTMLDivElement>(null);
   const openNote = useRef(onOpenNote);
   openNote.current = onOpenNote;
   const { data, loading, error, refresh } = useResource(
     JSON.stringify([noteId, collectionId]),
-    (signal) => load({ note_id: noteId, collection_id: collectionId, limit }, signal),
+    (signal) => api.graph({ note_id: noteId, collection_id: collectionId, limit }, signal),
     () => false,
   );
   const graphData = error ? undefined : data;
@@ -85,7 +76,22 @@ export function Graph({ noteId, collectionId, load, onOpenNote }: GraphProps) {
 
   return (
     <section className="note-graph" aria-busy={loading}>
-      <h1>Граф заметок</h1>
+      <h1>{noteId ? "Окружение заметки" : "Граф заметок"}</h1>
+      <label className="note-graph-filter">
+        Подборка
+        <select
+          value={collectionId}
+          onChange={(event) => setCollectionId(event.target.value)}
+          disabled={!collections.data || !!collections.error}
+        >
+          <option value="">Все заметки</option>
+          {collections.data?.map(({ id, title }) => (
+            <option key={id} value={id}>{title}</option>
+          ))}
+        </select>
+      </label>
+      {collections.loading && <p role="status">Загружаем подборки…</p>}
+      {collections.error && <ErrorBox error={collections.error} retry={collections.refresh} />}
       {loading && <p role="status">Загружаем граф…</p>}
       {error && (
         <div role="alert">

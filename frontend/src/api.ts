@@ -74,6 +74,15 @@ export interface CollectionSummary {
 export interface CollectionDetail extends CollectionSummary {
   notes: Page;
 }
+export interface GraphQuery {
+  note_id?: string;
+  collection_id?: string;
+  limit: number;
+}
+export interface GraphResponse {
+  nodes: { id: string; title: string }[];
+  edges: { source: string; target: string; score: number }[];
+}
 export interface Query {
   limit: number;
   offset: number;
@@ -144,6 +153,12 @@ export const api = {
       "/chat/messages",
       json("POST", { message, conversation_id: conversationId }),
     ),
+  graph(query: GraphQuery, signal: AbortSignal) {
+    const params = new URLSearchParams({ limit: String(query.limit) });
+    if (query.note_id) params.set("note_id", query.note_id);
+    if (query.collection_id) params.set("collection_id", query.collection_id);
+    return request<GraphResponse>(`/graph?${params}`, { signal });
+  },
   list(query: Query, signal: AbortSignal) {
     const params = new URLSearchParams();
     Object.entries(query).forEach(([key, value]) => {

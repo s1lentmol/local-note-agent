@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type FormEvent } from "react";
+import { Fragment, lazy, Suspense, useEffect, useState, type FormEvent } from "react";
 import {
   active,
   api,
@@ -14,6 +14,8 @@ import { ErrorBox } from "./ErrorBox";
 import { ImportProgress, Upload } from "./Imports";
 import { useOperationScope } from "./useOperationScope";
 import { useResource } from "./useResource";
+
+const Graph = lazy(async () => ({ default: (await import("./Graph")).Graph }));
 
 const sources: Record<SourceType, string> = {
   text: "Текст",
@@ -442,6 +444,11 @@ function Detail({ id }: { id: string }) {
             Создана {date(note.created_at)} · Изменена {date(note.updated_at)}
           </p>
           <Status note={note} />
+          {note.ingestion_status === "ready" && (
+            <a className="button" href={`#/graph/${note.id}`}>
+              Окружение заметки
+            </a>
+          )}
           <StageError
             title="Не удалось извлечь текст"
             error={note.ingestion_error}
@@ -586,6 +593,7 @@ export function App() {
   }, []);
   const batch = /^\/imports\/([0-9a-f-]{36})$/i.exec(path);
   const collection = /^\/collections\/([0-9a-f-]{36})$/i.exec(path);
+  const neighborhood = /^\/graph\/([0-9a-f-]{36})$/i.exec(path);
   const match = /^\/notes\/([0-9a-f-]{36})$/i.exec(path);
   return (
     <>
@@ -597,6 +605,7 @@ export function App() {
           <a href="#/" aria-current={path === "/" ? "page" : undefined}>Заметки</a>
           <a href="#/imports" aria-current={path.startsWith("/imports") ? "page" : undefined}>Загрузка</a>
           <a href="#/collections" aria-current={path.startsWith("/collections") ? "page" : undefined}>Подборки</a>
+          <a href="#/graph" aria-current={path === "/graph" || neighborhood ? "page" : undefined}>Граф</a>
           <a href="#/chat" aria-current={path === "/chat" ? "page" : undefined}>Чат</a>
         </nav>
       </header>
@@ -630,6 +639,15 @@ export function App() {
             <Collections />
           ) : collection ? (
             <Collection id={collection[1]} />
+          ) : path === "/graph" || neighborhood ? (
+            <Suspense fallback={<p role="status">Загружаем граф…</p>}>
+              <Graph
+                noteId={neighborhood?.[1]}
+                onOpenNote={(id) => {
+                  window.location.hash = `/notes/${id}`;
+                }}
+              />
+            </Suspense>
           ) : match ? (
             <Detail id={match[1]} />
           ) : (
